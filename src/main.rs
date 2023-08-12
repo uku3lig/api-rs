@@ -152,11 +152,12 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
             .into_app_err());
     }
 
-    if !CACHE.contains_key("tiers") {
-        let mode = *MODES.get(mode.as_str()).unwrap();
+    let mode = *MODES.get(mode.as_str()).unwrap();
+
+    if !CACHE.contains_key(mode) {
         let data = Arc::new(get_spreadsheet_data(mode).await?);
 
-        CACHE.insert("tiers", data.clone()).await;
+        CACHE.insert(mode, data.clone()).await;
     }
 
     let columns = CACHE.get("tiers").ok_or(anyhow!("cache miss"))?;
