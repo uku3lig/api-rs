@@ -9,7 +9,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use std::net::SocketAddr;
 use std::str::FromStr;
 use tower_http::trace::TraceLayer;
@@ -32,6 +32,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/downloads/:name", get(downloads))
         .route("/downloads/:name/shields", get(downloads_shields))
+        .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(RequestTracer));
 
     let socket_addr = SocketAddr::from_str("0.0.0.0:3000")?;
