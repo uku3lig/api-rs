@@ -38,7 +38,7 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder().default_headers(headers).build().unwrap()
 });
 
-static CACHE: Lazy<Cache<&str, Arc<Vec<Vec<CellData>>>>> = Lazy::new(|| {
+static CACHE: Lazy<Cache<String, Arc<Vec<Vec<CellData>>>>> = Lazy::new(|| {
     Cache::builder()
         .time_to_live(Duration::from_secs(900))
         .build()
@@ -158,15 +158,13 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
             .into_app_err());
     }
 
-    let mode = *MODES.get(mode.as_str()).unwrap();
+    if !CACHE.contains_key(&mode) {
+        let data = Arc::new(get_spreadsheet_data(MODES.get(mode.as_str()).unwrap()).await?);
 
-    if !CACHE.contains_key(mode) {
-        let data = Arc::new(get_spreadsheet_data(mode).await?);
-
-        CACHE.insert(mode, data.clone()).await;
+        CACHE.insert(mode.clone(), data.clone()).await;
     }
 
-    let columns = CACHE.get("tiers").ok_or(anyhow!("cache miss"))?;
+    let columns = CACHE.get(&mode).ok_or(anyhow!("cache miss"))?;
 
     let mut tiers = HashMap::new();
     for (i, cells) in columns.iter().enumerate() {
