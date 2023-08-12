@@ -18,6 +18,7 @@ use pollster::FutureExt;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::{Client, StatusCode};
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -65,7 +66,8 @@ async fn main() -> Result<()> {
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
 
-    let socket_addr = SocketAddr::from_str("0.0.0.0:3000")?;
+    let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
+    let socket_addr = SocketAddr::from_str(socket_addr.as_str())?;
     tracing::info!("listening on {}", socket_addr);
 
     Ok(axum::Server::bind(&socket_addr)
