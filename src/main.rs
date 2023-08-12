@@ -7,10 +7,12 @@ use anyhow::{anyhow, Result};
 use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
+use google_sheets4::api::CellData;
 use google_sheets4::hyper::client::HttpConnector;
 use google_sheets4::hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use google_sheets4::oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 use google_sheets4::{hyper, Sheets};
+use moka::future::Cache;
 use once_cell::sync::Lazy;
 use pollster::FutureExt;
 use reqwest::header::{HeaderMap, USER_AGENT};
@@ -20,6 +22,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -31,6 +35,12 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
     );
 
     Client::builder().default_headers(headers).build().unwrap()
+});
+
+static CACHE: Lazy<Cache<&str, Arc<Vec<Vec<CellData>>>>> = Lazy::new(|| {
+    Cache::builder()
+        .time_to_live(Duration::from_secs(900))
+        .build()
 });
 
 #[tokio::main]
@@ -142,8 +152,43 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
             .into_app_err());
     }
 
-    let mode = *MODES.get(mode.as_str()).unwrap();
+    if !CACHE.contains_key("tiers") {
+        let mode = *MODES.get(mode.as_str()).unwrap();
+        let data = Arc::new(get_spreadsheet_data(mode).await?);
 
+        CACHE.insert("tiers", data.clone()).await;
+    }
+
+    let columns = CACHE.get("tiers").ok_or(anyhow!("cache miss"))?;
+
+    let mut tiers = HashMap::new();
+    for (i, cells) in columns.iter().enumerate() {
+        for cell in cells {
+            if let Some(value) = cell.formatted_value.as_ref() {
+                let color = cell
+                    .effective_format
+                    .as_ref()
+                    .and_then(|f| f.background_color.clone())
+                    .unwrap_or_default()
+                    .to_hex();
+
+                match color {
+                    0x3c78d8 => {
+                        tiers.insert(value.clone(), format!("HT{}", i + 1));
+                    }
+                    0xa4c2f4 => {
+                        tiers.insert(value.clone(), format!("LT{}", i + 1));
+                    }
+                    _ => {}
+                };
+            }
+        }
+    }
+
+    Ok(Json(tiers))
+}
+
+async fn get_spreadsheet_data(mode: &str) -> Result<Vec<Vec<CellData>>> {
     let mut query = HUB
         .spreadsheets()
         .get("175dbUBlzB3PJY0SV-5j0CcLiXIPxxx_R80OLq4nFC2c")
@@ -168,7 +213,7 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
         .and_then(|s| s.get(0).cloned())
         .ok_or(anyhow!("Could not fetch sheets"))?;
 
-    let columns = sheet
+    Ok(sheet
         .data
         .ok_or(anyhow!("Could not fetch grid data"))?
         .iter()
@@ -179,30 +224,5 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
                 .flatten()
                 .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
-
-    let mut tiers = HashMap::new();
-    for (i, cells) in columns.iter().cloned().enumerate() {
-        for cell in cells {
-            if let Some(value) = cell.formatted_value {
-                let color = cell
-                    .effective_format
-                    .and_then(|f| f.background_color)
-                    .unwrap_or_default()
-                    .to_hex();
-
-                match color {
-                    0x3c78d8 => {
-                        tiers.insert(value, format!("HT{}", i + 1));
-                    }
-                    0xa4c2f4 => {
-                        tiers.insert(value, format!("LT{}", i + 1));
-                    }
-                    _ => {}
-                };
-            }
-        }
-    }
-
-    Ok(Json(tiers))
+        .collect::<Vec<_>>())
 }
