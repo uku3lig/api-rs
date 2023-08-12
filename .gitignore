@@ -3,3 +3,4 @@
 
 /target
 service_account.json
+.env

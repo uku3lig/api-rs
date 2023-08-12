@@ -1,9 +1,6 @@
-use axum::http::Request;
 use axum::response::{IntoResponse, Response};
 use google_sheets4::api::Color;
 use reqwest::StatusCode;
-use tower_http::trace::OnRequest;
-use tracing::Span;
 
 const UNITS: &[&str] = &["", "k", "M", "B", "T"];
 
@@ -67,15 +64,6 @@ pub trait IntoAppError {
 impl IntoAppError for (StatusCode, String) {
     fn into_app_err(self) -> AppError {
         AppError::StatusCode(self.0, self.1)
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct RequestTracer;
-
-impl<B> OnRequest<B> for RequestTracer {
-    fn on_request(&mut self, request: &Request<B>, _: &Span) {
-        tracing::info!("{} {}", request.method(), request.uri());
     }
 }
 

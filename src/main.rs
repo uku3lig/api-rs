@@ -2,7 +2,7 @@ mod model;
 mod util;
 
 use crate::model::{ModrinthProject, ShieldsBadge};
-use crate::util::{AppError, IntoAppError, RequestTracer, ToHex};
+use crate::util::{AppError, IntoAppError, ToHex};
 use anyhow::{anyhow, Result};
 use axum::extract::Path;
 use axum::routing::get;
@@ -45,6 +45,10 @@ static CACHE: Lazy<Cache<&str, Arc<Vec<Vec<CellData>>>>> = Lazy::new(|| {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if let Err(e) = dotenvy::dotenv() {
+        eprintln!("Failed to load .env file: {}", e);
+    }
+
     tracing_subscriber::fmt::init();
 
     let downloads_route = Router::new()
@@ -59,7 +63,7 @@ async fn main() -> Result<()> {
         .nest("/downloads", downloads_route)
         .nest("/tiers", tiers_route)
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
-        .layer(TraceLayer::new_for_http().on_request(RequestTracer));
+        .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
 
     let socket_addr = SocketAddr::from_str("0.0.0.0:3000")?;
     tracing::info!("listening on {}", socket_addr);
