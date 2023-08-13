@@ -1,5 +1,4 @@
 use axum::response::{IntoResponse, Response};
-use google_sheets4::api::Color;
 use reqwest::StatusCode;
 
 const UNITS: &[&str] = &["", "k", "M", "B", "T"];
@@ -64,21 +63,5 @@ pub trait IntoAppError {
 impl IntoAppError for (StatusCode, String) {
     fn into_app_err(self) -> AppError {
         AppError::StatusCode(self.0, self.1)
-    }
-}
-
-pub trait ToHex {
-    fn to_hex(&self) -> u32;
-}
-
-impl ToHex for Color {
-    fn to_hex(&self) -> u32 {
-        let red = (self.red.unwrap() * 255.0) as u8;
-        let green = (self.green.unwrap() * 255.0) as u8;
-        let blue = (self.blue.unwrap() * 255.0) as u8;
-
-        let hex = format!("{:02x}{:02x}{:02x}", red, green, blue);
-
-        u32::from_str_radix(&hex, 16).unwrap()
     }
 }
