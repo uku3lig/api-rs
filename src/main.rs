@@ -7,7 +7,6 @@ use anyhow::{anyhow, Result};
 use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
-use google_sheets4::api::CellData;
 use google_sheets4::hyper::client::HttpConnector;
 use google_sheets4::hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use google_sheets4::oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
@@ -17,13 +16,13 @@ use once_cell::sync::Lazy;
 use pollster::FutureExt;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::{Client, StatusCode};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use tower_http::trace::TraceLayer;
 
@@ -38,7 +37,7 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder().default_headers(headers).build().unwrap()
 });
 
-static CACHE: Lazy<Cache<String, Arc<Vec<Vec<CellData>>>>> = Lazy::new(|| {
+static CACHE: Lazy<Cache<String, Value>> = Lazy::new(|| {
     Cache::builder()
         .time_to_live(Duration::from_secs(900))
         .build()
@@ -149,7 +148,7 @@ async fn list_modes() -> Json<Vec<&'static str>> {
     Json(MODES.keys().copied().collect())
 }
 
-async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<String, String>>> {
+async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<Value>> {
     if MODES.get(mode.as_str()).is_none() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -159,12 +158,53 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
     }
 
     if !CACHE.contains_key(&mode) {
-        let data = Arc::new(get_spreadsheet_data(MODES.get(mode.as_str()).unwrap()).await?);
+        let data = get_spreadsheet_data(MODES.get(mode.as_str()).unwrap()).await?;
+        let value = serde_json::to_value(data)?;
 
-        CACHE.insert(mode.clone(), data.clone()).await;
+        CACHE.insert(mode.clone(), value).await;
     }
 
-    let columns = CACHE.get(&mode).ok_or(anyhow!("cache miss"))?;
+    let map = CACHE.get(&mode).ok_or(anyhow!("cache miss"))?;
+    Ok(Json(map))
+}
+
+async fn get_spreadsheet_data(mode: &str) -> Result<HashMap<String, String>> {
+    let mut query = HUB
+        .spreadsheets()
+        .get("175dbUBlzB3PJY0SV-5j0CcLiXIPxxx_R80OLq4nFC2c")
+        .include_grid_data(true);
+
+    for col in COLUMNS {
+        query = query.add_ranges(&format!("{mode}!{col}2:{col}"));
+    }
+
+    let (res, spreadsheet) = query.doit().await?;
+
+    if !res.status().is_success() {
+        Err(anyhow!(
+            "Could not get spreadsheet data: {} {:?}",
+            res.status(),
+            res.body(),
+        ))?;
+    }
+
+    let sheet = spreadsheet
+        .sheets
+        .and_then(|s| s.get(0).cloned())
+        .ok_or(anyhow!("Could not fetch sheets"))?;
+
+    let columns = sheet
+        .data
+        .ok_or(anyhow!("Could not fetch grid data"))?
+        .iter()
+        .filter_map(|d| d.row_data.clone())
+        .map(|v| {
+            v.iter()
+                .filter_map(|r| r.values.clone())
+                .flatten()
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
 
     let mut tiers = HashMap::new();
     for (i, cells) in columns.iter().enumerate() {
@@ -190,44 +230,5 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
         }
     }
 
-    Ok(Json(tiers))
-}
-
-async fn get_spreadsheet_data(mode: &str) -> Result<Vec<Vec<CellData>>> {
-    let mut query = HUB
-        .spreadsheets()
-        .get("175dbUBlzB3PJY0SV-5j0CcLiXIPxxx_R80OLq4nFC2c")
-        .include_grid_data(true);
-
-    for col in COLUMNS {
-        query = query.add_ranges(&format!("{mode}!{col}2:{col}"));
-    }
-
-    let (res, spreadsheet) = query.doit().await?;
-
-    if !res.status().is_success() {
-        Err(anyhow!(
-            "Could not get spreadsheet data: {} {:?}",
-            res.status(),
-            res.body(),
-        ))?;
-    }
-
-    let sheet = spreadsheet
-        .sheets
-        .and_then(|s| s.get(0).cloned())
-        .ok_or(anyhow!("Could not fetch sheets"))?;
-
-    Ok(sheet
-        .data
-        .ok_or(anyhow!("Could not fetch grid data"))?
-        .iter()
-        .filter_map(|d| d.row_data.clone())
-        .map(|v| {
-            v.iter()
-                .filter_map(|r| r.values.clone())
-                .flatten()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>())
+    Ok(tiers)
 }
