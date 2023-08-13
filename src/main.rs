@@ -7,6 +7,7 @@ use anyhow::Result;
 use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
+use moka::future::Cache;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::{Client, StatusCode};
@@ -14,6 +15,7 @@ use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -90,26 +92,40 @@ async fn downloads_shields(Path(name): Path<String>) -> RouteResponse<Json<Shiel
     Ok(Json(shield))
 }
 
+static TIERS_CACHE: Lazy<Cache<String, HashMap<String, String>>> = Lazy::new(|| {
+    Cache::builder()
+        .time_to_live(Duration::from_secs(900))
+        .build()
+});
+
 async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<String, String>>> {
-    let req = CLIENT
-        .get(format!("https://mctiers.com/api/tier/{mode}?count=32767"))
-        .build()?;
+    let info = match TIERS_CACHE.get(&mode) {
+        Some(v) => v,
+        None => {
+            let req = CLIENT
+                .get(format!("https://mctiers.com/api/tier/{mode}?count=32767"))
+                .build()?;
 
-    let res: TierList = CLIENT
-        .execute(req)
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+            let res: TierList = CLIENT
+                .execute(req)
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
 
-    let info = res
-        .into_tiered_info()
-        .iter()
-        .map(|i| {
-            let high = if i.high { "H" } else { "L" };
-            (i.name.clone(), format!("{}T{}", high, i.tier))
-        })
-        .collect();
+            let info = res.into_tiered_info();
+
+            let mut map = HashMap::new();
+            for i in info.iter() {
+                let high = if i.high { "H" } else { "L" };
+                map.insert(i.name.clone(), format!("{}T{}", high, i.tier));
+            }
+
+            TIERS_CACHE.insert(mode, map.clone()).await;
+
+            map
+        }
+    };
 
     Ok(Json(info))
 }
