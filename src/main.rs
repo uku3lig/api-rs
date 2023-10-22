@@ -2,20 +2,20 @@ mod model;
 mod util;
 
 use crate::model::{ModrinthProject, ShieldsBadge, TierList};
-use crate::util::AppError;
+use crate::util::{AppError, IntoAppError};
 use anyhow::Result;
 use axum::extract::Path;
 use axum::routing::get;
 use axum::{Json, Router};
 use moka::future::Cache;
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::{Client, StatusCode};
 use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,6 +28,8 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
 
     Client::builder().default_headers(headers).build().unwrap()
 });
+
+static TIMER_KEY: OnceCell<String> = OnceCell::new();
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,11 +45,16 @@ async fn main() -> Result<()> {
 
     let tiers_route = Router::new().route("/:mode", get(get_tiers));
 
-    let app = Router::new()
+    let mut app = Router::new()
         .nest("/downloads", downloads_route)
         .nest("/tiers", tiers_route)
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
+
+    if let Ok(key) = env::var("TIMER_KEY") {
+        TIMER_KEY.set(key).expect("could not set timer key");
+        app = app.route("/timer/:key", get(check_timer))
+    }
 
     let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
     let socket_addr = SocketAddr::from_str(socket_addr.as_str())?;
@@ -128,4 +135,19 @@ async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<Strin
     };
 
     Ok(Json(info))
+}
+
+async fn check_timer(Path(key): Path<String>) -> RouteResponse<String> {
+    let Some(correct_key) = TIMER_KEY.get() else {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "timer key is not set").into_app_err();
+    };
+
+    if *correct_key != key {
+        return (StatusCode::BAD_REQUEST, "no").into_app_err();
+    }
+
+    let seconds = UNIX_EPOCH.elapsed()?.as_secs();
+    std::fs::write("last_checked.txt", format!("{}", seconds))?;
+
+    Ok("success".into())
 }

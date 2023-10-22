@@ -57,11 +57,11 @@ where
 }
 
 pub trait IntoAppError {
-    fn into_app_err(self) -> AppError;
+    fn into_app_err<T>(self) -> Result<T, AppError>;
 }
 
-impl IntoAppError for (StatusCode, String) {
-    fn into_app_err(self) -> AppError {
-        AppError::StatusCode(self.0, self.1)
+impl<'a> IntoAppError for (StatusCode, &'a str) {
+    fn into_app_err<T>(self) -> Result<T, AppError> {
+        Err(AppError::StatusCode(self.0, self.1.into()))
     }
 }
