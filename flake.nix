@@ -33,6 +33,9 @@
             (rust-bin.stable.latest.default.override {
               extensions = ["rust-analyzer" "rust-src"];
             })
+
+            openssl
+            pkg-config
           ];
         };
 
