@@ -106,7 +106,7 @@ static TIERS_CACHE: Lazy<Cache<String, HashMap<String, String>>> = Lazy::new(|| 
 });
 
 async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<String, String>>> {
-    let info = match TIERS_CACHE.get(&mode) {
+    let info = match TIERS_CACHE.get(&mode).await {
         Some(v) => v,
         None => {
             let req = CLIENT
