@@ -3,4 +3,5 @@
 
 /target
 service_account.json
+.direnv
 .env
