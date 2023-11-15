@@ -14,32 +14,29 @@
   };
 
   outputs = {
-    nixpkgs,
+    self,
     flake-parts,
-    rust-overlay,
     ...
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
 
-      perSystem = {system, ...}: let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [(import rust-overlay)];
-        };
-      in {
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            (rust-bin.stable.latest.default.override {
-              extensions = ["rust-analyzer" "rust-src"];
-            })
+      imports = [
+        ./parts/dev.nix
+      ];
 
-            openssl
-            pkg-config
-          ];
-        };
+      flake.nixosModules.default = import ./parts/module.nix self;
 
-        formatter = pkgs.alejandra;
+      perSystem = {
+        pkgs,
+        self',
+        ...
+      }: {
+        packages = {
+          api-rs = pkgs.callPackage ./parts/derivation.nix {inherit self;};
+          api-rs-smol = self'.packages.api-rs.override {optimizeSize = true;};
+          default = self'.packages.api-rs;
+        };
       };
     };
 }
