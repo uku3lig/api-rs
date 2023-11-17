@@ -60,9 +60,19 @@ async fn main() -> Result<()> {
     let socket_addr = SocketAddr::from_str(socket_addr.as_str())?;
     tracing::info!("listening on {}", socket_addr);
 
-    Ok(axum::Server::bind(&socket_addr)
-        .serve(app.into_make_service())
-        .await?)
+    let server = axum::Server::bind(&socket_addr).serve(app.into_make_service());
+
+    server
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Could not register ctrl+c handler");
+        })
+        .await?;
+
+            tracing::info!("shutting down...");
+
+    Ok(())
 }
 
 type RouteResponse<T> = Result<T, AppError>;
