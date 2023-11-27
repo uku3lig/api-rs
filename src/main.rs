@@ -5,16 +5,15 @@ use crate::model::{ModrinthProject, ShieldsBadge, TierList};
 use crate::util::{AppError, IntoAppError};
 use anyhow::Result;
 use axum::extract::Path;
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use moka::future::Cache;
 use once_cell::sync::{Lazy, OnceCell};
 use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use std::collections::HashMap;
 use std::env;
-use std::net::SocketAddr;
-use std::str::FromStr;
 use std::time::{Duration, UNIX_EPOCH};
 use tower_http::trace::TraceLayer;
 
@@ -57,20 +56,12 @@ async fn main() -> Result<()> {
     }
 
     let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
-    let socket_addr = SocketAddr::from_str(socket_addr.as_str())?;
-    tracing::info!("listening on {}", socket_addr);
+    let listener = tokio::net::TcpListener::bind(socket_addr).await?;
+    tracing::info!("listening on {}", listener.local_addr()?);
 
-    let server = axum::Server::bind(&socket_addr).serve(app.into_make_service());
+    axum::serve(listener, app).await?;
 
-    server
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c()
-                .await
-                .expect("Could not register ctrl+c handler");
-        })
-        .await?;
-
-            tracing::info!("shutting down...");
+    // TODO graceful shutdown (not implemented in 0.7 yet, but not a big loss so idc i'll just wait)
 
     Ok(())
 }

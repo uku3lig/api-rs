@@ -1,5 +1,7 @@
-use axum::response::{IntoResponse, Response};
-use reqwest::StatusCode;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 
 const UNITS: &[&str] = &["", "k", "M", "B", "T"];
 
@@ -35,7 +37,7 @@ impl IntoResponse for AppError {
                     .into_response(),
                 Some(e) => {
                     let code = if let Some(status) = e.status() {
-                        status
+                        StatusCode::from_u16(status.as_u16()).unwrap()
                     } else {
                         StatusCode::INTERNAL_SERVER_ERROR
                     };
