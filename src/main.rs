@@ -1,20 +1,18 @@
 mod model;
 mod util;
 
-use crate::model::{ModrinthProject, ShieldsBadge, TierList};
+use crate::model::{ModrinthProject, ShieldsBadge};
 use crate::util::{AppError, IntoAppError};
 use anyhow::Result;
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use moka::future::Cache;
 use once_cell::sync::{Lazy, OnceCell};
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::Client;
-use std::collections::HashMap;
 use std::env;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -42,11 +40,8 @@ async fn main() -> Result<()> {
         .route("/:name", get(downloads))
         .route("/:name/shields", get(downloads_shields));
 
-    let tiers_route = Router::new().route("/:mode", get(get_tiers));
-
     let mut app = Router::new()
         .nest("/downloads", downloads_route)
-        .nest("/tiers", tiers_route)
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
 
@@ -98,44 +93,6 @@ async fn downloads_shields(Path(name): Path<String>) -> RouteResponse<Json<Shiel
     };
 
     Ok(Json(shield))
-}
-
-static TIERS_CACHE: Lazy<Cache<String, HashMap<String, String>>> = Lazy::new(|| {
-    Cache::builder()
-        .time_to_live(Duration::from_secs(900))
-        .build()
-});
-
-async fn get_tiers(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<String, String>>> {
-    let info = match TIERS_CACHE.get(&mode).await {
-        Some(v) => v,
-        None => {
-            let req = CLIENT
-                .get(format!("https://mctiers.com/api/tier/{mode}?count=32767"))
-                .build()?;
-
-            let res: TierList = CLIENT
-                .execute(req)
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
-
-            let info = res.into_tiered_info();
-
-            let mut map = HashMap::new();
-            for i in info.iter() {
-                let high = if i.high { "H" } else { "L" };
-                map.insert(i.name.clone(), format!("{}T{}", high, i.tier));
-            }
-
-            TIERS_CACHE.insert(mode, map.clone()).await;
-
-            map
-        }
-    };
-
-    Ok(Json(info))
 }
 
 async fn check_timer(Path(key): Path<String>) -> RouteResponse<String> {
