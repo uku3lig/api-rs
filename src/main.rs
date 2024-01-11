@@ -12,6 +12,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::Client;
 use std::env;
+use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 use tower_http::trace::TraceLayer;
 
@@ -27,6 +28,9 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
 });
 
 static TIMER_KEY: OnceCell<String> = OnceCell::new();
+
+static FILES_LOCATION: Lazy<PathBuf> =
+    Lazy::new(|| env::var("FILES_LOCATION").unwrap_or(".".into()).into());
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -105,7 +109,8 @@ async fn check_timer(Path(key): Path<String>) -> RouteResponse<String> {
     }
 
     let seconds = UNIX_EPOCH.elapsed()?.as_secs();
-    std::fs::write("last_checked.txt", format!("{}", seconds))?;
+    let path = FILES_LOCATION.join("last_checked.txt");
+    std::fs::write(path, format!("{}", seconds))?;
 
     Ok("success".into())
 }
