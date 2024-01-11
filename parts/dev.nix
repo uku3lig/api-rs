@@ -1,19 +1,23 @@
 {inputs, ...}: {
-  perSystem = {system, ...}: let
+  perSystem = {lib, system, ...}: let
     pkgs = import inputs.nixpkgs {
       inherit system;
       overlays = [(import inputs.rust-overlay)];
     };
   in {
-    devShells.default = pkgs.mkShell {
-      buildInputs = with pkgs; [
+    devShells.default = with pkgs; mkShell {
+      buildInputs = [
         (rust-bin.stable.latest.default.override {
           extensions = ["rust-analyzer" "rust-src"];
         })
 
         openssl
-        pkg-config
       ];
+
+      nativeBuildInputs = [pkg-config];
+      packages = [nil];
+
+      LD_LIBRARY_PATH = lib.makeLibraryPath [openssl];
     };
 
     formatter = pkgs.alejandra;
