@@ -25,6 +25,10 @@ in {
   options.services.api-rs = {
     enable = mkEnableOption "api-rs";
     package = mkPackageOption self.packages.${system} "api-rs" {};
+    ports = mkOption {
+      type = types.listOf types.int;
+      default = [ 5000 ];
+    };
     environmentFile = mkOption {
       description = mdDoc ''
         Environment file as defined in {manpage}`systemd.exec(5)`
@@ -38,6 +42,8 @@ in {
   };
 
   config = mkIf cfg.enable {
+    networking.firewall.allowedTCPPorts = cfg.ports;
+
     systemd.services."api-rs" = {
       enable = true;
       wantedBy = mkDefault ["multi-user.target"];
