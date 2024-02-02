@@ -35,14 +35,13 @@
       }: {
         packages = {
           api-rs = pkgs.callPackage ./parts/derivation.nix {inherit self;};
-          api-rs-smol = self'.packages.api-rs.override {optimizeSize = true;};
           default = self'.packages.api-rs;
 
           container = pkgs.dockerTools.buildLayeredImage {
             name = "api-rs";
             tag = "latest";
             contents = [pkgs.dockerTools.caCertificates];
-            config.Cmd = [(lib.getExe self'.packages.api-rs-smol)];
+            config.Cmd = [(lib.getExe self'.packages.api-rs)];
           };
         };
       };

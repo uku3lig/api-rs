@@ -27,7 +27,7 @@ in {
     package = mkPackageOption self.packages.${system} "api-rs" {};
     ports = mkOption {
       type = types.listOf types.int;
-      default = [ 5000 ];
+      default = [5000];
     };
     environmentFile = mkOption {
       description = mdDoc ''

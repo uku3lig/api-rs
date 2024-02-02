@@ -4,12 +4,10 @@
   openssl,
   pkg-config,
   self,
-  lto ? true,
-  optimizeSize ? false,
 }:
 rustPlatform.buildRustPackage {
   pname = "api-rs";
-  version = builtins.substring 0 8 self.lastModifiedDate or "dirty";
+  version = self.shortRev or self.dirtyShortRev or "dirty";
 
   cargoLock.lockFile = ../Cargo.lock;
 
@@ -17,10 +15,6 @@ rustPlatform.buildRustPackage {
 
   buildInputs = [openssl];
   nativeBuildInputs = [pkg-config];
-
-  RUSTFLAGS =
-    lib.optionalString lto " -C lto=thin -C embed-bitcode=yes"
-    + lib.optionalString optimizeSize " -C codegen-units=1 -C strip=symbols -C opt-level=z";
 
   meta = with lib; {
     mainProgram = "api-rs";

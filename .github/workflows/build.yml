@@ -1,6 +1,6 @@
 # thanks getchoo :3
 
-name: upload to registry
+name: build and cache stuff
 # this is for uploading images to a container registry when
 # changes are made to `main`
 
@@ -24,7 +24,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      
+      - name: setup cachix
+        uses: cachix/cachix-action@v13
+        with:
+          name: uku3lig
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      
+      - name: build derivation
+        run: nix build --accept-flake-config -L .#api-rs
 
       - name: fetch docker image
         run: |
