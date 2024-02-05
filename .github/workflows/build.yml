@@ -26,7 +26,7 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       
       - name: setup cachix
-        uses: cachix/cachix-action@v13
+        uses: cachix/cachix-action@v14
         with:
           name: uku3lig
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
