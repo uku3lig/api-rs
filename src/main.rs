@@ -2,18 +2,16 @@ mod model;
 mod util;
 
 use crate::model::{ModrinthProject, ShieldsBadge};
-use crate::util::{AppError, IntoAppError};
+use crate::util::AppError;
 use anyhow::Result;
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::Client;
 use std::env;
-use std::path::PathBuf;
-use std::time::UNIX_EPOCH;
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,11 +25,6 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder().default_headers(headers).build().unwrap()
 });
 
-static TIMER_KEY: OnceCell<String> = OnceCell::new();
-
-static FILES_LOCATION: Lazy<PathBuf> =
-    Lazy::new(|| env::var("FILES_LOCATION").unwrap_or(".".into()).into());
-
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = dotenvy::dotenv() {
@@ -44,15 +37,10 @@ async fn main() -> Result<()> {
         .route("/:name", get(downloads))
         .route("/:name/shields", get(downloads_shields));
 
-    let mut app = Router::new()
+    let app = Router::new()
         .nest("/downloads", downloads_route)
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
-
-    if let Ok(key) = env::var("TIMER_KEY") {
-        TIMER_KEY.set(key).expect("could not set timer key");
-        app = app.route("/timer/:key", get(check_timer))
-    }
 
     let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
     let listener = tokio::net::TcpListener::bind(socket_addr).await?;
@@ -97,20 +85,4 @@ async fn downloads_shields(Path(name): Path<String>) -> RouteResponse<Json<Shiel
     };
 
     Ok(Json(shield))
-}
-
-async fn check_timer(Path(key): Path<String>) -> RouteResponse<String> {
-    let Some(correct_key) = TIMER_KEY.get() else {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "timer key is not set").into_app_err();
-    };
-
-    if *correct_key != key {
-        return (StatusCode::BAD_REQUEST, "no").into_app_err();
-    }
-
-    let seconds = UNIX_EPOCH.elapsed()?.as_secs();
-    let path = FILES_LOCATION.join("last_checked.txt");
-    std::fs::write(path, format!("{}", seconds))?;
-
-    Ok("success".into())
 }
