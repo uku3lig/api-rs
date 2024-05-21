@@ -15,10 +15,15 @@ tokio = { version = "1.37.0", features = [
 ] }
 reqwest = { version = "0.12.4", features = ["json"] }
 
+serenity = { version = "0.12.1", default-features = false, features = [
+    "builder",
+    "model",
+    "native_tls_backend",
+] }
+
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 once_cell = "1.19.0"
-moka = { version = "0.12", features = ["future"] }
 
 anyhow = "1.0"
 tracing = "0.1"
@@ -27,4 +32,4 @@ dotenvy = "0.15.7"
 
 [profile.release]
 strip = true
-lto = true
+lto = "thin"

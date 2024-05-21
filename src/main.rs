@@ -1,3 +1,4 @@
+mod discord;
 mod model;
 mod util;
 
@@ -39,8 +40,11 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .nest("/downloads", downloads_route)
+        .route("/generate_invite", get(discord::generate_invite))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
+
+    discord::init_bot().await?;
 
     let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
     let listener = tokio::net::TcpListener::bind(socket_addr).await?;

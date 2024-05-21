@@ -20,7 +20,7 @@
         ];
 
         nativeBuildInputs = [pkg-config];
-        packages = [nil];
+        packages = [xh];
 
         LD_LIBRARY_PATH = lib.makeLibraryPath [openssl];
       };
