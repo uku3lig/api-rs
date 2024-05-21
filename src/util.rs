@@ -5,15 +5,15 @@ use axum::{
 
 const UNITS: &[&str] = &["", "k", "M", "B", "T"];
 
-pub fn format_number(n: usize) -> String {
-    let mut n = n as f32;
+pub fn format_number(n: u32) -> String {
+    let mut n = f64::from(n);
 
     for unit in UNITS {
         if n < 1000.0 {
             return format!("{n:.1}{unit}");
-        } else {
-            n /= 1000.0;
         }
+
+        n /= 1000.0;
     }
 
     let last = UNITS.last().unwrap();
@@ -32,7 +32,7 @@ impl IntoResponse for AppError {
             Self::Anyhow(e) => match e.downcast_ref::<reqwest::Error>() {
                 None => (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Something went wrong: {}", e),
+                    format!("Something went wrong: {e}"),
                 )
                     .into_response(),
                 Some(e) => {
@@ -42,7 +42,7 @@ impl IntoResponse for AppError {
                         StatusCode::INTERNAL_SERVER_ERROR
                     };
 
-                    (code, format!("{}", e)).into_response()
+                    (code, format!("{e}")).into_response()
                 }
             },
         }

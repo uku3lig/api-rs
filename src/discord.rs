@@ -44,7 +44,7 @@ pub async fn init_bot() -> anyhow::Result<()> {
 
     tracing::info!("successfully logged in to discord bot {}!", user.name);
 
-    Ok(())  
+    Ok(())
 }
 
 pub async fn generate_invite(

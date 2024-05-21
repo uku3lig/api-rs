@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 mod discord;
 mod model;
 mod util;
@@ -29,7 +31,7 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = dotenvy::dotenv() {
-        eprintln!("Failed to load .env file: {}", e);
+        eprintln!("Failed to load .env file: {e}");
     }
 
     tracing_subscriber::fmt::init();
@@ -60,24 +62,24 @@ async fn main() -> Result<()> {
 type RouteResponse<T> = Result<T, AppError>;
 
 async fn downloads(Path(name): Path<String>) -> RouteResponse<String> {
-    let req = CLIENT
+    let request = CLIENT
         .get(format!("https://api.modrinth.com/v2/user/{name}/projects"))
         .build()?;
 
-    let res: Vec<ModrinthProject> = CLIENT
-        .execute(req)
+    let response: Vec<ModrinthProject> = CLIENT
+        .execute(request)
         .await?
         .error_for_status()?
         .json()
         .await?;
 
-    let sum: usize = res.iter().map(|p| p.downloads).sum();
+    let sum: usize = response.iter().map(|p| p.downloads).sum();
 
     Ok(format!("{sum}"))
 }
 
 async fn downloads_shields(Path(name): Path<String>) -> RouteResponse<Json<ShieldsBadge>> {
-    let count: usize = downloads(Path(name)).await?.parse().unwrap();
+    let count: u32 = downloads(Path(name)).await?.parse().unwrap();
     let formatted = util::format_number(count);
 
     let shield = ShieldsBadge {
