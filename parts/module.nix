@@ -47,7 +47,8 @@ in {
     systemd.services."api-rs" = {
       enable = true;
       wantedBy = mkDefault ["multi-user.target"];
-      after = mkDefault ["network.target"];
+      wants = mkDefault ["network-online.target"];
+      after = mkDefault ["network.target" "network-online.target"];
       script = ''
         ${getExe cfg.package}
       '';
