@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 axum = "0.7.5"
 tower-http = { version = "0.5.2", features = ["trace"] }
-tokio = { version = "1.37.0", features = [
+tokio = { version = "1.38.0", features = [
     "rt-multi-thread",
     "macros",
     "signal",
