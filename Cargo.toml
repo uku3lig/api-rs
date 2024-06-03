@@ -15,7 +15,7 @@ tokio = { version = "1.37.0", features = [
 ] }
 reqwest = { version = "0.12.4", features = ["json"] }
 
-serenity = { version = "0.12.1", default-features = false, features = [
+serenity = { version = "0.12.2", default-features = false, features = [
     "builder",
     "model",
     "native_tls_backend",
