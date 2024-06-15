@@ -14,6 +14,7 @@ use axum::{Json, Router};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::Client;
+use serenity::futures::TryFutureExt;
 use std::env;
 use tower_http::trace::TraceLayer;
 
@@ -52,9 +53,11 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(socket_addr).await?;
     tracing::info!("listening on {}", listener.local_addr()?);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(tokio::signal::ctrl_c().unwrap_or_else(|_| ()))
+        .await?;
 
-    // TODO graceful shutdown (not implemented in 0.7 yet, but not a big loss so idc i'll just wait)
+    tracing::info!("shutting down!");
 
     Ok(())
 }
