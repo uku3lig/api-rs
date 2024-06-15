@@ -56,6 +56,7 @@ in {
       serviceConfig = {
         Type = "simple";
         Restart = "always";
+        RestartSec = "5s";
 
         EnvironmentFile = mkIf (cfg.environmentFile != null) cfg.environmentFile;
 
