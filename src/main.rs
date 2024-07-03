@@ -2,6 +2,7 @@
 
 mod discord;
 mod model;
+mod tiers;
 mod util;
 
 use crate::model::{ModrinthProject, ShieldsBadge};
@@ -43,6 +44,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .nest("/downloads", downloads_route)
+        .nest("/tiers", tiers::router())
         .route("/generate_invite", get(discord::generate_invite))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
