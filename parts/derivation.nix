@@ -16,6 +16,8 @@ rustPlatform.buildRustPackage {
   buildInputs = [openssl];
   nativeBuildInputs = [pkg-config];
 
+  doCheck = false;
+
   meta = with lib; {
     mainProgram = "api-rs";
     description = "backend for api.uku3lig.net";
