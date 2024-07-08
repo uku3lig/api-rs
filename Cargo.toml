@@ -21,7 +21,7 @@ serenity = { version = "0.12.2", default-features = false, features = [
     "native_tls_backend",
 ] }
 
-moka = { version = "0.12.7", features = ["future"] }
+moka = { version = "0.12.8", features = ["future"] }
 uuid = { version = "1.9.1", features = ["serde"] }
 
 serde = { version = "1.0", features = ["derive"] }
