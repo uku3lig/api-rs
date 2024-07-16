@@ -71,6 +71,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/all", get(get_all))
         .route("/profile/:uuid", get(get_tier))
+        .route("/search_profile/:name", get(search_profile))
         .route("/:mode", get(get_mode))
 }
 
@@ -126,6 +127,25 @@ pub async fn get_mode(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<St
     };
 
     Ok(Json(tiers))
+}
+
+/// (technically) no-op. forwards the request straight to mctiers
+///
+/// BEWARE !!!!!!!!!!!!!!!!!!! uuid is now returned WITH dashes !!!!
+pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<PlayerInfo>> {
+    let url = format!("https://mctiers.com/api/search_profile/{name}");
+
+    let player: PlayerInfo = crate::CLIENT
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    PLAYER_CACHE.insert(player.uuid, Some(player.clone())).await;
+
+    Ok(Json(player))
 }
 
 // === Utility functions ===
