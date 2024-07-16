@@ -15,8 +15,8 @@ use axum::{Json, Router};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::Client;
-use serenity::futures::TryFutureExt;
 use std::env;
+use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -56,7 +56,9 @@ async fn main() -> Result<()> {
     tracing::info!("listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(tokio::signal::ctrl_c().unwrap_or_else(|_| ()))
+        .with_graceful_shutdown(async {
+            signal(SignalKind::terminate()).unwrap().recv().await;
+        })
         .await?;
 
     tracing::info!("shutting down!");
