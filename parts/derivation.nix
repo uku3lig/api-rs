@@ -1,8 +1,6 @@
 {
   lib,
   rustPlatform,
-  openssl,
-  pkg-config,
   self,
 }:
 rustPlatform.buildRustPackage {
@@ -12,9 +10,6 @@ rustPlatform.buildRustPackage {
   cargoLock.lockFile = ../Cargo.lock;
 
   src = self;
-
-  buildInputs = [openssl];
-  nativeBuildInputs = [pkg-config];
 
   doCheck = false;
 
