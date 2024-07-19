@@ -14,14 +14,14 @@ const MODES: [&str; 7] = ["axe", "neth_pot", "pot", "smp", "sword", "uhc", "vani
 
 static PLAYER_CACHE: Lazy<Cache<Uuid, Option<PlayerInfo>>> = Lazy::new(|| {
     CacheBuilder::new(65535)
-        .time_to_live(Duration::from_secs(60 * 60 * 24)) // 24 hours
-        .time_to_idle(Duration::from_secs(60 * 60 * 2)) // 2 hours
+        .time_to_live(Duration::from_secs(60 * 60 * 72)) // 72 hours
+        .time_to_idle(Duration::from_secs(60 * 60 * 6)) // 2 hours
         .build()
 });
 
 static MODE_CACHE: Lazy<Cache<String, HashMap<String, String>>> = Lazy::new(|| {
     CacheBuilder::new(MODES.len() as u64)
-        .time_to_live(Duration::from_secs(60 * 60 * 2)) // 2 hours
+        .time_to_live(Duration::from_secs(60 * 60 * 24)) // 24 hours
         .build()
 });
 
