@@ -170,7 +170,8 @@ async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
         }
     };
 
-    match response.json().await {
+    match response.json::<PlayerInfo>().await {
+        Ok(p) if p.rankings.is_empty() => None,
         Ok(p) => Some(p),
         Err(e) => {
             tracing::warn!("Failed to parse profile `{uuid}`: {e}");
