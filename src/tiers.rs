@@ -68,11 +68,13 @@ pub struct AllPlayerInfo {
 // === Routes ===
 
 pub fn router() -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/all", get(get_all))
         .route("/profile/:uuid", get(get_tier))
         .route("/search_profile/:name", get(search_profile))
-        .route("/:mode", get(get_mode))
+        .route("/:mode", get(get_mode));
+
+    Router::new().nest("/tiers", router)
 }
 
 pub async fn get_tier(Path(uuid): Path<String>) -> RouteResponse<impl IntoResponse> {

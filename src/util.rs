@@ -3,23 +3,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-const UNITS: &[&str] = &["", "k", "M", "B", "T"];
-
-pub fn format_number(n: u32) -> String {
-    let mut n = f64::from(n);
-
-    for unit in UNITS {
-        if n < 1000.0 {
-            return format!("{n:.1}{unit}");
-        }
-
-        n /= 1000.0;
-    }
-
-    let last = UNITS.last().unwrap();
-    format!("{n:.1}{last}")
-}
-
 pub enum AppError {
     Anyhow(anyhow::Error),
     StatusCode(StatusCode, String),

@@ -1,20 +1,17 @@
 #![warn(clippy::pedantic)]
 
 mod discord;
-mod model;
+mod downloads;
 mod tiers;
 mod util;
 
-use crate::model::{ModrinthProject, ShieldsBadge};
 use crate::util::AppError;
 use anyhow::Result;
-use axum::extract::Path;
-use axum::http::StatusCode;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::Router;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use std::env;
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
@@ -38,13 +35,9 @@ async fn main() -> Result<()> {
 
     tracing_subscriber::fmt::init();
 
-    let downloads_route = Router::new()
-        .route("/:name", get(downloads))
-        .route("/:name/shields", get(downloads_shields));
-
     let app = Router::new()
-        .nest("/downloads", downloads_route)
-        .nest("/tiers", tiers::router())
+        .merge(downloads::router())
+        .merge(tiers::router())
         .route("/generate_invite", get(discord::generate_invite))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}));
@@ -67,35 +60,3 @@ async fn main() -> Result<()> {
 }
 
 type RouteResponse<T> = Result<T, AppError>;
-
-async fn downloads(Path(name): Path<String>) -> RouteResponse<String> {
-    let request = CLIENT
-        .get(format!("https://api.modrinth.com/v2/user/{name}/projects"))
-        .build()?;
-
-    let response: Vec<ModrinthProject> = CLIENT
-        .execute(request)
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-
-    let sum: usize = response.iter().map(|p| p.downloads).sum();
-
-    Ok(format!("{sum}"))
-}
-
-async fn downloads_shields(Path(name): Path<String>) -> RouteResponse<Json<ShieldsBadge>> {
-    let count: u32 = downloads(Path(name)).await?.parse().unwrap();
-    let formatted = util::format_number(count);
-
-    let shield = ShieldsBadge {
-        schema_version: 1,
-        label: "downloads".into(),
-        message: formatted,
-        color: "brightgreen".into(),
-        named_logo: "modrinth".into(),
-    };
-
-    Ok(Json(shield))
-}
