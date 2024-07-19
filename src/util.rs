@@ -36,12 +36,7 @@ impl IntoResponse for AppError {
                 )
                     .into_response(),
                 Some(e) => {
-                    let code = if let Some(status) = e.status() {
-                        StatusCode::from_u16(status.as_u16()).unwrap()
-                    } else {
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    };
-
+                    let code = e.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
                     (code, format!("{e}")).into_response()
                 }
             },
