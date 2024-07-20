@@ -27,7 +27,7 @@
         packages.default = pkgs.callPackage ./parts/derivation.nix {inherit self;};
 
         devShells.default = with pkgs; mkShell {
-          packages = [clippy rustfmt rust-analyzer];
+          packages = [clippy rustfmt rust-analyzer redis];
           inputsFrom = [self'.packages.default];
           RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
         };

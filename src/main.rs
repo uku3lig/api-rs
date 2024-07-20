@@ -1,5 +1,6 @@
 #![warn(clippy::pedantic)]
 
+mod cache;
 mod discord;
 mod downloads;
 mod metrics;
@@ -9,23 +10,30 @@ mod util;
 use crate::util::AppError;
 use axum::routing::get;
 use axum::{middleware, Router};
+use cache::Storage;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::{Client, StatusCode};
+use reqwest::StatusCode;
 use std::env;
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-static CLIENT: Lazy<Client> = Lazy::new(|| {
+
+static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
     let mut headers = HeaderMap::new();
     headers.insert(
         USER_AGENT,
         format!("uku3lig/api-rs/{VERSION}").parse().unwrap(),
     );
 
-    Client::builder().default_headers(headers).build().unwrap()
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
 });
+
+static CACHE: Lazy<cache::Storage> = Lazy::new(|| Storage::new_from_env().unwrap());
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

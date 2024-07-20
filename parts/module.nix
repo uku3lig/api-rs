@@ -38,24 +38,36 @@ in {
   };
 
   config = mkIf cfg.enable {
+    services.redis.servers.api-rs = {
+      enable = true;
+      user = "api-rs";
+      port = 0; # disable tcp
+    };
+    
     systemd.services."api-rs" = {
       enable = true;
       wantedBy = mkDefault ["multi-user.target"];
       wants = mkDefault ["network-online.target"];
-      after = mkDefault ["network.target" "network-online.target"];
+      after = mkDefault ["network.target" "network-online.target" "redis-api-rs.service"];
       script = ''
         ${getExe cfg.package}
       '';
+
+      environment = {
+        REDIS_URL = "unix:${config.services.redis.servers.api-rs.unixSocket}";
+      };
 
       serviceConfig = {
         Type = "simple";
         Restart = "always";
         RestartSec = "5s";
 
+        User = "api-rs";
+        Group = "api-rs";
+
         EnvironmentFile = mkIf (cfg.environmentFile != null) cfg.environmentFile;
 
         # hardening
-        DynamicUser = true;
         PrivateTmp = true;
         NoNewPrivileges = true;
         RestrictNamespaces = "uts ipc pid user cgroup";
@@ -66,6 +78,14 @@ in {
         ProtectControlGroups = true;
         PrivateDevices = true;
         RestrictSUIDSGID = true;
+      };
+    };
+
+    users = {
+      groups.api-rs = {};
+      users.api-rs = {
+        isSystemUser = true;
+        group = "api-rs";
       };
     };
   };

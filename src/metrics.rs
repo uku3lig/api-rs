@@ -8,7 +8,7 @@ const TOTAL_REQS_KEY: &str = "api_rs_requests_total";
 const REQ_DURATION_KEY: &str = "api_rs_request_duration_seconds";
 
 const EXPONENTIAL_SECONDS: &[f64] = &[
-    0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
 ];
 
 pub async fn start_metrics_app() -> anyhow::Result<()> {

@@ -1,33 +1,15 @@
-use std::time::Duration;
 use std::{collections::HashMap, fmt::Display};
 
 use axum::{extract::Path, response::IntoResponse, routing::get, Json, Router};
-use moka::future::{Cache, CacheBuilder};
-use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::RouteResponse;
-
-const MODES: [&str; 7] = ["axe", "neth_pot", "pot", "smp", "sword", "uhc", "vanilla"];
-
-static PLAYER_CACHE: Lazy<Cache<Uuid, Option<PlayerInfo>>> = Lazy::new(|| {
-    CacheBuilder::new(65535)
-        .time_to_live(Duration::from_secs(60 * 60 * 72)) // 72 hours
-        .time_to_idle(Duration::from_secs(60 * 60 * 6)) // 2 hours
-        .build()
-});
-
-static MODE_CACHE: Lazy<Cache<String, HashMap<String, String>>> = Lazy::new(|| {
-    CacheBuilder::new(MODES.len() as u64)
-        .time_to_live(Duration::from_secs(60 * 60 * 24)) // 24 hours
-        .build()
-});
+use crate::{RouteResponse, CACHE};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerInfo {
-    uuid: Uuid,
+    pub uuid: Uuid,
     name: String,
     rankings: HashMap<String, Ranking>,
     region: String,
@@ -71,8 +53,7 @@ pub fn router() -> Router {
     let router = Router::new()
         .route("/all", get(get_all))
         .route("/profile/:uuid", get(get_tier))
-        .route("/search_profile/:name", get(search_profile))
-        .route("/:mode", get(get_mode));
+        .route("/search_profile/:name", get(search_profile));
 
     Router::new().nest("/tiers", router)
 }
@@ -89,11 +70,13 @@ pub async fn get_tier(Path(uuid): Path<String>) -> RouteResponse<impl IntoRespon
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let profile = PLAYER_CACHE
-        .entry(uuid)
-        .or_insert_with(fetch_tier(&uuid))
-        .await
-        .into_value();
+    let profile = if CACHE.has_player_info(uuid).await? {
+        CACHE.get_player_info(uuid).await?
+    } else {
+        let p = fetch_tier(&uuid).await;
+        CACHE.set_player_info(uuid, p.clone()).await?;
+        p
+    };
 
     let res = match profile {
         None => StatusCode::NOT_FOUND.into_response(),
@@ -107,28 +90,14 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
     let mut players = Vec::new();
     let mut unknown = Vec::new();
 
-    for (uuid, profile) in PLAYER_CACHE.iter() {
+    for (uuid, profile) in CACHE.get_all_players().await? {
         match profile {
             Some(p) => players.push(p),
-            None => unknown.push(*uuid),
+            None => unknown.push(uuid),
         }
     }
 
     Ok(Json(AllPlayerInfo { players, unknown }))
-}
-
-pub async fn get_mode(Path(mode): Path<String>) -> RouteResponse<Json<HashMap<String, String>>> {
-    let tiers = if MODES.contains(&mode.as_str()) {
-        MODE_CACHE
-            .entry_by_ref(&mode)
-            .or_insert_with(async { get_mode_tiers(&mode) })
-            .await
-            .into_value()
-    } else {
-        HashMap::new()
-    };
-
-    Ok(Json(tiers))
 }
 
 /// (technically) no-op. forwards the request straight to mctiers
@@ -145,7 +114,9 @@ pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<Play
         .json()
         .await?;
 
-    PLAYER_CACHE.insert(player.uuid, Some(player.clone())).await;
+    CACHE
+        .set_player_info(player.uuid, Some(player.clone()))
+        .await?;
 
     Ok(Json(player))
 }
@@ -180,12 +151,4 @@ async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
             None
         }
     }
-}
-
-fn get_mode_tiers(mode: &str) -> HashMap<String, String> {
-    PLAYER_CACHE
-        .iter()
-        .filter_map(|(_, p)| p)
-        .filter_map(|p| p.rankings.get(mode).map(|r| (p.name, r.to_string())))
-        .collect()
 }

@@ -6,3 +6,4 @@ service_account.json
 .direnv
 .env
 result
+dump.rdb
