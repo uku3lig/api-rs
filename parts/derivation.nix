@@ -1,15 +1,20 @@
 {
   lib,
   rustPlatform,
+  mold-wrapped,
   self,
 }:
 rustPlatform.buildRustPackage {
   pname = "api-rs";
   version = self.shortRev or self.dirtyShortRev or "dirty";
 
+  src = self;
+
+  nativeBuildInputs = [mold-wrapped];
+
   cargoLock.lockFile = ../Cargo.lock;
 
-  src = self;
+  RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
 
   doCheck = false;
 
