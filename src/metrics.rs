@@ -36,7 +36,15 @@ pub async fn start_metrics_app() -> anyhow::Result<()> {
 pub async fn track(request: Request, next: Next) -> impl IntoResponse {
     let start = Instant::now();
     let method = request.method().clone();
-    let path = request.uri().path().to_owned();
+    let path = {
+        let mut p = request.uri().path();
+
+        if p.contains("profile") {
+            p = p.rsplit_once('/').unwrap().0;
+        }
+
+        p.to_owned()
+    };
 
     let response = next.run(request).await;
 
