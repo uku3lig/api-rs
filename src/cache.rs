@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
+use anyhow::Result;
+use bb8::Pool;
+use bb8_redis::RedisConnectionManager;
 use redis::{AsyncCommands, Client, ConnectionLike};
 use redis_macros::{FromRedisValue, ToRedisArgs};
 use serde::{Deserialize, Serialize};
@@ -10,19 +13,21 @@ use crate::tiers::PlayerInfo;
 
 const PROFILE_KEY: &str = "tiers-v1-profile";
 
-type Result<T> = std::result::Result<T, redis::RedisError>;
-
+#[derive(Debug)]
 pub struct Storage {
-    client: Client,
+    pool: Pool<RedisConnectionManager>,
 }
 
 impl Storage {
-    pub fn new_from_env() -> anyhow::Result<Self> {
+    pub async fn new_from_env() -> anyhow::Result<Self> {
         let url = std::env::var("REDIS_URL").context("REDIS_URL not set")?;
-        let mut client = redis::Client::open(url)?;
+        let mut client = Client::open(url.clone())?;
 
         if client.check_connection() {
-            Ok(Self { client })
+            let manager = RedisConnectionManager::new(url)?;
+            let pool = Pool::builder().max_size(20).build(manager).await?;
+
+            Ok(Self { pool })
         } else {
             anyhow::bail!("failed to connect to redis");
         }
@@ -32,14 +37,14 @@ impl Storage {
 
     pub async fn has_player_info(&self, uuid: uuid::Uuid) -> Result<bool> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.client.get_multiplexed_async_connection().await?;
+        let mut con = self.pool.get().await?;
 
-        con.exists(&key).await
+        con.exists(&key).await.map_err(anyhow::Error::from)
     }
 
     pub async fn get_player_info(&self, uuid: uuid::Uuid) -> Result<Option<PlayerInfo>> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.client.get_multiplexed_async_connection().await?;
+        let mut con = self.pool.get().await?;
 
         let player: OptionalPlayerInfo = con.get(&key).await?;
 
@@ -52,19 +57,20 @@ impl Storage {
         player: Option<PlayerInfo>,
     ) -> Result<()> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.client.get_multiplexed_async_connection().await?;
+        let mut con = self.pool.get().await?;
 
         let player: OptionalPlayerInfo = player.into();
 
         redis::pipe()
             .set(&key, player)
             .expire(&key, 60 * 60 * 12)
-            .query_async(&mut con)
+            .query_async(&mut *con)
             .await
+            .map_err(anyhow::Error::from)
     }
 
     pub async fn get_all_players(&self) -> anyhow::Result<HashMap<Uuid, Option<PlayerInfo>>> {
-        let mut con = self.client.get_multiplexed_async_connection().await?;
+        let mut con = self.pool.get().await?;
 
         let keys: Vec<String> = con.keys(format!("{PROFILE_KEY}:*").as_str()).await?;
         let mut players = HashMap::new();

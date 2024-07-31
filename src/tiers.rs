@@ -5,7 +5,7 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{RouteResponse, CACHE};
+use crate::{get_cache, RouteResponse};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerInfo {
@@ -70,11 +70,11 @@ pub async fn get_tier(Path(uuid): Path<String>) -> RouteResponse<impl IntoRespon
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let profile = if CACHE.has_player_info(uuid).await? {
-        CACHE.get_player_info(uuid).await?
+    let profile = if get_cache().has_player_info(uuid).await? {
+        get_cache().get_player_info(uuid).await?
     } else {
         let p = fetch_tier(&uuid).await;
-        CACHE.set_player_info(uuid, p.clone()).await?;
+        get_cache().set_player_info(uuid, p.clone()).await?;
         p
     };
 
@@ -90,7 +90,7 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
     let mut players = Vec::new();
     let mut unknown = Vec::new();
 
-    for (uuid, profile) in CACHE.get_all_players().await? {
+    for (uuid, profile) in get_cache().get_all_players().await? {
         match profile {
             Some(p) => players.push(p),
             None => unknown.push(uuid),
@@ -114,7 +114,7 @@ pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<Play
         .json()
         .await?;
 
-    CACHE
+    get_cache()
         .set_player_info(player.uuid, Some(player.clone()))
         .await?;
 

@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::StatusCode;
 use std::env;
+use std::sync::OnceLock;
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
 
@@ -33,7 +34,9 @@ static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
         .unwrap()
 });
 
-static CACHE: Lazy<cache::Storage> = Lazy::new(|| Storage::new_from_env().unwrap());
+static CACHE: OnceLock<cache::Storage> = OnceLock::new();
+
+type RouteResponse<T> = Result<T, AppError>;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -61,6 +64,9 @@ async fn start_main_app() -> anyhow::Result<()> {
 
     discord::init_bot().await?;
 
+    let storage = Storage::new_from_env().await?;
+    CACHE.set(storage).unwrap();
+
     let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
     let listener = tokio::net::TcpListener::bind(socket_addr).await?;
     tracing::info!("main app listening on {}", listener.local_addr()?);
@@ -73,4 +79,6 @@ async fn start_main_app() -> anyhow::Result<()> {
         .map_err(anyhow::Error::from)
 }
 
-type RouteResponse<T> = Result<T, AppError>;
+fn get_cache() -> &'static Storage {
+    CACHE.get().unwrap()
+}
