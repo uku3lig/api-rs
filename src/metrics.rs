@@ -2,6 +2,7 @@ use std::{env, time::Instant};
 
 use axum::{extract::Request, middleware::Next, response::IntoResponse, routing::get, Router};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
+use reqwest::header::USER_AGENT;
 use tokio::signal::unix::{signal, SignalKind};
 
 const TOTAL_REQS_KEY: &str = "api_rs_requests_total";
@@ -45,6 +46,12 @@ pub async fn track(request: Request, next: Next) -> impl IntoResponse {
 
         p.to_owned()
     };
+    let user_agent = request
+        .headers()
+        .get(USER_AGENT)
+        .and_then(|a| a.to_str().ok())
+        .unwrap_or("unknown")
+        .to_owned();
 
     let response = next.run(request).await;
 
@@ -55,6 +62,7 @@ pub async fn track(request: Request, next: Next) -> impl IntoResponse {
         ("method", method.to_string()),
         ("path", path),
         ("status", status),
+        ("user_agent", user_agent),
     ];
 
     metrics::counter!(TOTAL_REQS_KEY, &labels).increment(1);
