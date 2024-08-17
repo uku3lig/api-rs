@@ -1,19 +1,19 @@
 use std::env;
+use std::sync::OnceLock;
 
 use anyhow::Context;
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum::{extract::Query, response::IntoResponse};
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serenity::all::{ChannelId, CreateInvite, Http};
 
 use crate::{util::IntoAppError, RouteResponse};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-static TURNSTILE_SECRET: OnceCell<String> = OnceCell::new();
-static SERENITY_HTTP: OnceCell<Http> = OnceCell::new();
-static CHANNEL_ID: OnceCell<ChannelId> = OnceCell::new();
+static TURNSTILE_SECRET: OnceLock<String> = OnceLock::new();
+static SERENITY_HTTP: OnceLock<Http> = OnceLock::new();
+static CHANNEL_ID: OnceLock<ChannelId> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TurnstileData {

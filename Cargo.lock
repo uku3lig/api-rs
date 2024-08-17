@@ -56,7 +56,6 @@ dependencies = [
  "dotenvy",
  "metrics",
  "metrics-exporter-prometheus",
- "once_cell",
  "redis",
  "redis-macros",
  "reqwest 0.12.5",

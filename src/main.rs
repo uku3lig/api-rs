@@ -11,17 +11,16 @@ use crate::util::AppError;
 use axum::routing::get;
 use axum::{middleware, Router};
 use cache::Storage;
-use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::StatusCode;
 use std::env;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     let mut headers = HeaderMap::new();
     headers.insert(
         USER_AGENT,
