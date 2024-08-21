@@ -4,8 +4,9 @@ use anyhow::Context;
 use anyhow::Result;
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
+use redis::FromRedisValue;
 use redis::{AsyncCommands, Client, ConnectionLike};
-use redis_macros::{FromRedisValue, ToRedisArgs};
+use redis_macros::ToRedisArgs;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -73,28 +74,51 @@ impl Storage {
         let mut con = self.pool.get().await?;
 
         let keys: Vec<String> = con.keys(format!("{PROFILE_KEY}:*").as_str()).await?;
-        let mut players = HashMap::new();
 
-        for key in keys {
-            let uuid = &key[PROFILE_KEY.len() + 1..];
+        let (uuids, keys) = keys
+            .into_iter()
+            .filter_map(|k| {
+                let uuid = &k[PROFILE_KEY.len() + 1..];
+                Uuid::parse_str(uuid).ok().map(|u| (u, k))
+            })
+            .collect::<(Vec<_>, Vec<_>)>();
 
-            if let Ok(uuid) = Uuid::parse_str(uuid) {
-                let player: OptionalPlayerInfo = con.get(&key).await?;
-                players.insert(uuid, player.into());
-            } else {
-                tracing::warn!("invalid key found: {key}");
-            }
-        }
+        let values: Vec<OptionalPlayerInfo> = con.mget(&keys).await?;
+        let values: Vec<Option<PlayerInfo>> = values.into_iter().map(Into::into).collect();
 
-        Ok(players)
+        Ok(uuids.into_iter().zip(values).collect())
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRedisValue, ToRedisArgs)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToRedisArgs)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OptionalPlayerInfo {
     Present(PlayerInfo),
     Unknown,
+}
+
+impl FromRedisValue for OptionalPlayerInfo {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+        match *v {
+            redis::Value::Nil => Ok(Self::Unknown),
+            redis::Value::BulkString(ref bytes) => {
+                if let Ok(s) = std::str::from_utf8(bytes) {
+                    if let Ok(s) = serde_json::from_str(s) {
+                        Ok(s)
+                    } else {
+                        redis_error(format!("Response type not deserializable with serde_json. (response was {v:?})"))
+                    }
+                } else {
+                    redis_error(format!(
+                        "Response was not valid UTF-8 string. (response was {v:?})"
+                    ))
+                }
+            }
+            _ => redis_error(format!(
+                "Response type was not deserializable. (response was {v:?})"
+            )),
+        }
+    }
 }
 
 impl From<Option<PlayerInfo>> for OptionalPlayerInfo {
@@ -113,4 +137,12 @@ impl From<OptionalPlayerInfo> for Option<PlayerInfo> {
             OptionalPlayerInfo::Unknown => None,
         }
     }
+}
+
+fn redis_error(msg: String) -> redis::RedisResult<OptionalPlayerInfo> {
+    Err(redis::RedisError::from((
+        redis::ErrorKind::TypeError,
+        "Response was of incompatible type",
+        msg,
+    )))
 }
