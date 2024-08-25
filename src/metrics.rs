@@ -35,7 +35,6 @@ pub async fn start_metrics_app() -> anyhow::Result<()> {
 }
 
 pub async fn track(request: Request, next: Next) -> impl IntoResponse {
-    let start = Instant::now();
     let method = request.method().clone();
     let path = {
         let mut p = request.uri().path();
@@ -53,10 +52,11 @@ pub async fn track(request: Request, next: Next) -> impl IntoResponse {
         .unwrap_or("unknown")
         .to_owned();
 
+    let start = Instant::now();
     let response = next.run(request).await;
+    let delta_time = start.elapsed().as_secs_f64();
 
     let status = response.status().as_u16().to_string();
-    let delta_time = start.elapsed().as_secs_f64();
 
     let labels = [
         ("method", method.to_string()),
