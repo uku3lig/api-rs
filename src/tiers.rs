@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, time::Instant};
 
 use axum::{extract::Path, response::IntoResponse, routing::get, Json, Router};
 use reqwest::StatusCode;
@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{get_cache, RouteResponse};
+
+const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
+const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerInfo {
@@ -106,13 +109,17 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
 pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<PlayerInfo>> {
     let url = format!("https://mctiers.com/api/search_profile/{name}");
 
-    let player: PlayerInfo = crate::CLIENT
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let start = Instant::now();
+    let response = crate::CLIENT.get(url).send().await?;
+
+    let delta_time = start.elapsed().as_secs_f64();
+    let status = response.status().as_u16().to_string();
+    let labels = [("path", String::from("search_profile")), ("status", status)];
+
+    metrics::counter!(MCTIERS_REQS_KEY, &labels).increment(1);
+    metrics::histogram!(MCTIERS_REQ_DURATION_KEY, &labels).record(delta_time);
+
+    let player: PlayerInfo = response.error_for_status()?.json().await?;
 
     get_cache()
         .set_player_info(player.uuid, Some(player.clone()))
@@ -126,13 +133,19 @@ pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<Play
 async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
     let url = format!("https://mctiers.com/api/profile/{}", uuid.as_simple());
 
-    let response = crate::CLIENT
-        .get(url)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status);
+    let start = Instant::now();
+    let response = crate::CLIENT.get(url).send().await;
+    let delta_time = start.elapsed().as_secs_f64();
 
-    let response = match response {
+    if let Ok(ref response) = response {
+        let status = response.status().as_u16().to_string();
+        let labels = [("path", String::from("profile")), ("status", status)];
+
+        metrics::counter!(MCTIERS_REQS_KEY, &labels).increment(1);
+        metrics::histogram!(MCTIERS_REQ_DURATION_KEY, &labels).record(delta_time);
+    }
+
+    let response = match response.and_then(reqwest::Response::error_for_status) {
         Ok(r) => r,
         Err(e) => {
             if e.status() != Some(StatusCode::NOT_FOUND) {

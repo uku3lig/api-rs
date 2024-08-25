@@ -15,7 +15,7 @@ const EXPONENTIAL_SECONDS: &[f64] = &[
 pub async fn start_metrics_app() -> anyhow::Result<()> {
     let handle = PrometheusBuilder::new()
         .set_buckets_for_metric(
-            Matcher::Full(REQ_DURATION_KEY.to_string()),
+            Matcher::Suffix("duration_seconds".to_string()),
             EXPONENTIAL_SECONDS,
         )?
         .install_recorder()?;
