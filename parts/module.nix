@@ -43,7 +43,7 @@ in {
       user = "api-rs";
       port = 0; # disable tcp
     };
-    
+
     systemd.services."api-rs" = {
       enable = true;
       wantedBy = mkDefault ["multi-user.target"];

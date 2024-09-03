@@ -26,11 +26,12 @@
       }: {
         packages.default = pkgs.callPackage ./parts/derivation.nix {inherit self;};
 
-        devShells.default = with pkgs; mkShell {
-          packages = [clippy rustfmt rust-analyzer redis xh];
-          inputsFrom = [self'.packages.default];
-          RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
-        };
+        devShells.default = with pkgs;
+          mkShell {
+            packages = [clippy rustfmt rust-analyzer redis xh];
+            inputsFrom = [self'.packages.default];
+            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+          };
 
         formatter = pkgs.alejandra;
       };
