@@ -48,6 +48,7 @@ pub struct Badge {
 pub struct AllPlayerInfo {
     players: Vec<PlayerInfo>,
     unknown: Vec<Uuid>,
+    fetch_unknown: bool,
 }
 
 // === Routes ===
@@ -100,7 +101,11 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
         }
     }
 
-    Ok(Json(AllPlayerInfo { players, unknown }))
+    Ok(Json(AllPlayerInfo {
+        players,
+        unknown,
+        fetch_unknown: true,
+    }))
 }
 
 /// (technically) no-op. forwards the request straight to mctiers
