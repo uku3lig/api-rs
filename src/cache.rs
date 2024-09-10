@@ -75,6 +75,10 @@ impl Storage {
 
         let keys: Vec<String> = con.keys(format!("{PROFILE_KEY}:*").as_str()).await?;
 
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let (uuids, keys) = keys
             .into_iter()
             .filter_map(|k| {
