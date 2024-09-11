@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Display, time::Instant};
 
 use axum::{extract::Path, response::IntoResponse, routing::get, Json, Router};
+use redis_macros::{FromRedisValue, ToRedisArgs};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,7 +11,7 @@ use crate::{get_cache, RouteResponse};
 const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
 const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToRedisArgs, FromRedisValue)]
 pub struct PlayerInfo {
     pub uuid: Uuid,
     name: String,
@@ -47,7 +48,7 @@ pub struct Badge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllPlayerInfo {
     players: Vec<PlayerInfo>,
-    unknown: Vec<Uuid>,
+    unknown: Vec<String>,
     fetch_unknown: bool,
 }
 
@@ -91,15 +92,7 @@ pub async fn get_tier(Path(uuid): Path<String>) -> RouteResponse<impl IntoRespon
 }
 
 pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
-    let mut players = Vec::new();
-    let mut unknown = Vec::new();
-
-    for (uuid, profile) in get_cache().get_all_players().await? {
-        match profile {
-            Some(p) => players.push(p),
-            None => unknown.push(uuid),
-        }
-    }
+    let (players, unknown) = get_cache().get_all_players().await?;
 
     Ok(Json(AllPlayerInfo {
         players,

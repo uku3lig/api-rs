@@ -1,18 +1,18 @@
-use std::collections::HashMap;
+use std::time::Duration;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use anyhow::Context;
 use anyhow::Result;
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
-use redis::FromRedisValue;
 use redis::{AsyncCommands, Client, ConnectionLike};
-use redis_macros::ToRedisArgs;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::tiers::PlayerInfo;
 
-const PROFILE_KEY: &str = "tiers-v1-profile";
+const PROFILE_KEY_V2: &str = "tiers-v2-profile";
+const UNKNOWN_SET_KEY: &str = "tiers-v2:unknown-set";
+const EXPIRATION_SECONDS: u32 = 60 * 60 * 12;
 
 #[derive(Debug)]
 pub struct Storage {
@@ -37,116 +37,115 @@ impl Storage {
     // === PlayerInfo ===
 
     pub async fn has_player_info(&self, uuid: uuid::Uuid) -> Result<bool> {
-        let key = format!("{PROFILE_KEY}:{uuid}");
+        let key = format!("{PROFILE_KEY_V2}:{uuid}");
         let mut con = self.pool.get().await?;
 
         con.exists(&key).await.map_err(anyhow::Error::from)
     }
 
     pub async fn get_player_info(&self, uuid: uuid::Uuid) -> Result<Option<PlayerInfo>> {
-        let key = format!("{PROFILE_KEY}:{uuid}");
+        let key = format!("{PROFILE_KEY_V2}:{uuid}");
+
         let mut con = self.pool.get().await?;
 
-        let player: OptionalPlayerInfo = con.get(&key).await?;
+        if con.exists(&key).await? {
+            Ok(Some(con.get(&key).await?))
+        } else {
+            let score: Option<f64> = con.zscore(UNKNOWN_SET_KEY, &key).await?;
+            if score.is_none() {
+                con.zadd(UNKNOWN_SET_KEY, uuid.to_string(), expire_time())
+                    .await?;
+            }
 
-        Ok(player.into())
+            Ok(None)
+        }
     }
 
     pub async fn set_player_info(
         &self,
         uuid: uuid::Uuid,
-        player: Option<PlayerInfo>,
+        opt_player: Option<PlayerInfo>,
     ) -> Result<()> {
-        let key = format!("{PROFILE_KEY}:{uuid}");
+        let key = format!("{PROFILE_KEY_V2}:{uuid}");
+
         let mut con = self.pool.get().await?;
 
-        let player: OptionalPlayerInfo = player.into();
+        match opt_player {
+            Some(player) => {
+                redis::pipe()
+                    .set(&key, player)
+                    .expire(&key, EXPIRATION_SECONDS.into())
+                    .query_async(&mut *con)
+                    .await?;
+            }
+            None => {
+                con.zadd(UNKNOWN_SET_KEY, uuid.to_string(), expire_time())
+                    .await?;
+            }
+        }
 
-        redis::pipe()
-            .set(&key, player)
-            .expire(&key, 60 * 60 * 12)
-            .query_async(&mut *con)
-            .await
-            .map_err(anyhow::Error::from)
+        Ok(())
     }
 
-    pub async fn get_all_players(&self) -> anyhow::Result<HashMap<Uuid, Option<PlayerInfo>>> {
+    pub async fn get_all_players(&self) -> anyhow::Result<(Vec<PlayerInfo>, Vec<String>)> {
         let mut con = self.pool.get().await?;
 
-        let keys: Vec<String> = con.keys(format!("{PROFILE_KEY}:*").as_str()).await?;
+        let keys: Vec<String> = {
+            let mut keys = Vec::new();
+            let mut iter = con
+                .scan_match(format!("{PROFILE_KEY_V2}:*").as_str())
+                .await?;
+
+            while let Some(e) = iter.next_item().await {
+                keys.push(e);
+            }
+
+            keys
+        };
 
         if keys.is_empty() {
-            return Ok(HashMap::new());
+            return Ok((vec![], vec![]));
         }
 
-        let (uuids, keys) = keys
-            .into_iter()
-            .filter_map(|k| {
-                let uuid = &k[PROFILE_KEY.len() + 1..];
-                Uuid::parse_str(uuid).ok().map(|u| (u, k))
-            })
-            .collect::<(Vec<_>, Vec<_>)>();
+        let values: Vec<PlayerInfo> = con.mget(&keys).await?;
 
-        let values: Vec<OptionalPlayerInfo> = con.mget(&keys).await?;
-        let values: Vec<Option<PlayerInfo>> = values.into_iter().map(Into::into).collect();
+        // ZRANGE with BYSCORE is not implement in redis-rs yet
+        // see redis-rs/redis-rs#586
+        let unknown: Vec<String> = redis::cmd("ZRANGE")
+            .arg(UNKNOWN_SET_KEY)
+            .arg(now())
+            .arg("+inf")
+            .arg("BYSCORE")
+            .query_async(&mut *con)
+            .await?;
 
-        Ok(uuids.into_iter().zip(values).collect())
+        // remove expired entries
+        con.zrembyscore(UNKNOWN_SET_KEY, "-inf", now()).await?;
+
+        Ok((values, unknown))
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToRedisArgs)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum OptionalPlayerInfo {
-    Present(PlayerInfo),
-    Unknown,
-}
+fn expire_time() -> u64 {
+    let end = SystemTime::now() + Duration::from_secs(EXPIRATION_SECONDS.into());
 
-impl FromRedisValue for OptionalPlayerInfo {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        match *v {
-            redis::Value::Nil => Ok(Self::Unknown),
-            redis::Value::BulkString(ref bytes) => {
-                if let Ok(s) = std::str::from_utf8(bytes) {
-                    if let Ok(s) = serde_json::from_str(s) {
-                        Ok(s)
-                    } else {
-                        redis_error(format!("Response type not deserializable with serde_json. (response was {v:?})"))
-                    }
-                } else {
-                    redis_error(format!(
-                        "Response was not valid UTF-8 string. (response was {v:?})"
-                    ))
-                }
-            }
-            _ => redis_error(format!(
-                "Response type was not deserializable. (response was {v:?})"
-            )),
+    match end.duration_since(UNIX_EPOCH) {
+        Ok(d) => d.as_secs(),
+        Err(e) => {
+            // this should never happen, but in case something really fucking bad happens i'd rather have it log than panic
+            tracing::error!("time went backwards: {e}");
+            0
         }
     }
 }
 
-impl From<Option<PlayerInfo>> for OptionalPlayerInfo {
-    fn from(player: Option<PlayerInfo>) -> Self {
-        match player {
-            Some(player) => Self::Present(player),
-            None => Self::Unknown,
+fn now() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(d) => d.as_secs(),
+        Err(e) => {
+            // this should never happen, but in case something really fucking bad happens i'd rather have it log than panic
+            tracing::error!("time went backwards: {e}");
+            0
         }
     }
-}
-
-impl From<OptionalPlayerInfo> for Option<PlayerInfo> {
-    fn from(val: OptionalPlayerInfo) -> Self {
-        match val {
-            OptionalPlayerInfo::Present(player) => Some(player),
-            OptionalPlayerInfo::Unknown => None,
-        }
-    }
-}
-
-fn redis_error(msg: String) -> redis::RedisResult<OptionalPlayerInfo> {
-    Err(redis::RedisError::from((
-        redis::ErrorKind::TypeError,
-        "Response was of incompatible type",
-        msg,
-    )))
 }
