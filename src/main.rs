@@ -4,19 +4,22 @@ mod cache;
 mod discord;
 mod downloads;
 mod metrics;
+mod migrate;
 mod tiers;
 mod util;
 
-use crate::util::AppError;
-use axum::routing::get;
-use axum::{middleware, Router};
-use cache::Storage;
-use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::StatusCode;
 use std::env;
 use std::sync::{LazyLock, OnceLock};
+
+use axum::routing::get;
+use axum::{middleware, Router};
+use reqwest::header::{HeaderMap, USER_AGENT};
+use reqwest::StatusCode;
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
+
+use crate::cache::Storage;
+use crate::util::AppError;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -45,9 +48,17 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt::init();
 
-    tokio::try_join!(start_main_app(), metrics::start_metrics_app())?;
-
-    tracing::info!("shutting down!");
+    let args: Vec<String> = env::args().collect();
+    match args.get(1) {
+        Some(arg) if arg == "migrate" => {
+            migrate::start_migration()?;
+            tracing::info!("migration complete!");
+        }
+        _ => {
+            tokio::try_join!(start_main_app(), metrics::start_metrics_app())?;
+            tracing::info!("shutting down!");
+        }
+    }
 
     Ok(())
 }

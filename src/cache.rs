@@ -10,9 +10,9 @@ use redis::{AsyncCommands, Client, ConnectionLike};
 
 use crate::tiers::PlayerInfo;
 
-const PROFILE_KEY_V2: &str = "tiers-v2-profile";
-const UNKNOWN_SET_KEY: &str = "tiers-v2:unknown-set";
-const EXPIRATION_SECONDS: u32 = 60 * 60 * 12;
+pub const PROFILE_KEY_V2: &str = "tiers-v2-profile";
+pub const UNKNOWN_SET_KEY: &str = "tiers-v2:unknown-set";
+pub const EXPIRATION_SECONDS: u32 = 60 * 60 * 12;
 
 #[derive(Debug)]
 pub struct Storage {
@@ -126,7 +126,7 @@ impl Storage {
     }
 }
 
-fn expire_time() -> u64 {
+pub fn expire_time() -> u64 {
     let end = SystemTime::now() + Duration::from_secs(EXPIRATION_SECONDS.into());
 
     match end.duration_since(UNIX_EPOCH) {
