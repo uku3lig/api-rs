@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Display, time::Instant};
 
 use axum::{extract::Path, response::IntoResponse, routing::get, Json, Router};
+use borsh::{BorshDeserialize, BorshSerialize};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,7 +11,7 @@ use crate::{get_cache, RouteResponse};
 const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
 const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct PlayerInfo {
     pub uuid: Uuid,
     name: String,
@@ -21,7 +22,7 @@ pub struct PlayerInfo {
     badges: Vec<Badge>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct Ranking {
     tier: u8,
     pos: u8,
@@ -38,13 +39,13 @@ impl Display for Ranking {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct Badge {
     title: String,
     desc: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AllPlayerInfo {
     players: Vec<PlayerInfo>,
     unknown: Vec<Uuid>,

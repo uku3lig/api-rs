@@ -4,10 +4,11 @@ use anyhow::Context;
 use anyhow::Result;
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
+use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
 use redis::FromRedisValue;
+use redis::ToRedisArgs;
 use redis::{AsyncCommands, Client, ConnectionLike};
-use redis_macros::ToRedisArgs;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::tiers::PlayerInfo;
@@ -49,7 +50,7 @@ impl Storage {
 
         let player: OptionalPlayerInfo = con.get(&key).await?;
 
-        Ok(player.into())
+        Ok(player.0)
     }
 
     pub async fn set_player_info(
@@ -60,10 +61,8 @@ impl Storage {
         let key = format!("{PROFILE_KEY}:{uuid}");
         let mut con = self.pool.get().await?;
 
-        let player: OptionalPlayerInfo = player.into();
-
         redis::pipe()
-            .set(&key, player)
+            .set(&key, OptionalPlayerInfo(player))
             .expire(&key, 60 * 60 * 12)
             .query_async(&mut *con)
             .await
@@ -88,57 +87,41 @@ impl Storage {
             .collect::<(Vec<_>, Vec<_>)>();
 
         let values: Vec<OptionalPlayerInfo> = con.mget(&keys).await?;
-        let values: Vec<Option<PlayerInfo>> = values.into_iter().map(Into::into).collect();
+        let values: Vec<Option<PlayerInfo>> = values.into_iter().map(|o| o.0).collect();
 
         Ok(uuids.into_iter().zip(values).collect())
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToRedisArgs)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum OptionalPlayerInfo {
-    Present(PlayerInfo),
-    Unknown,
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+pub struct OptionalPlayerInfo(Option<PlayerInfo>);
+
+impl ToRedisArgs for OptionalPlayerInfo {
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + redis::RedisWrite,
+    {
+        let buf = borsh::to_vec(&self).unwrap();
+        out.write_arg(&buf);
+    }
 }
 
 impl FromRedisValue for OptionalPlayerInfo {
     fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
         match *v {
-            redis::Value::Nil => Ok(Self::Unknown),
+            redis::Value::Nil => Ok(Self(None)),
             redis::Value::BulkString(ref bytes) => {
-                if let Ok(s) = std::str::from_utf8(bytes) {
-                    if let Ok(s) = serde_json::from_str(s) {
-                        Ok(s)
-                    } else {
-                        redis_error(format!("Response type not deserializable with serde_json. (response was {v:?})"))
-                    }
+                if let Ok(s) = borsh::from_slice(bytes) {
+                    Ok(s)
                 } else {
                     redis_error(format!(
-                        "Response was not valid UTF-8 string. (response was {v:?})"
+                        "Response type not deserializable with borsh. (response was {v:?})"
                     ))
                 }
             }
             _ => redis_error(format!(
                 "Response type was not deserializable. (response was {v:?})"
             )),
-        }
-    }
-}
-
-impl From<Option<PlayerInfo>> for OptionalPlayerInfo {
-    fn from(player: Option<PlayerInfo>) -> Self {
-        match player {
-            Some(player) => Self::Present(player),
-            None => Self::Unknown,
-        }
-    }
-}
-
-impl From<OptionalPlayerInfo> for Option<PlayerInfo> {
-    fn from(val: OptionalPlayerInfo) -> Self {
-        match val {
-            OptionalPlayerInfo::Present(player) => Some(player),
-            OptionalPlayerInfo::Unknown => None,
         }
     }
 }
