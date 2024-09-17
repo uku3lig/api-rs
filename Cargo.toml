@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = "1.0"
 axum = "0.7.5"
 bb8 = "0.8.5"
-bb8-redis = "0.16.0"
+bb8-redis = "0.17.0"
 dotenvy = "0.15.7"
 metrics = "0.23.0"
 metrics-exporter-prometheus = { version = "0.15.3", default-features = false }
