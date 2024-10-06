@@ -62,11 +62,7 @@ pub fn router() -> Router {
     Router::new().nest("/tiers", router)
 }
 
-pub async fn get_tier(Path(uuid): Path<String>) -> RouteResponse<impl IntoResponse> {
-    let Ok(uuid) = Uuid::try_parse(&uuid) else {
-        return Ok(StatusCode::BAD_REQUEST.into_response());
-    };
-
+pub async fn get_tier(Path(uuid): Path<Uuid>) -> RouteResponse<impl IntoResponse> {
     // uuid version 4 and ietf variant, used by UUID#randomUUID
     if uuid.get_version() != Some(uuid::Version::Random)
         || uuid.get_variant() != uuid::Variant::RFC4122
