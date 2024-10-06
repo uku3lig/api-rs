@@ -51,6 +51,11 @@ pub struct AllPlayerInfo {
     fetch_unknown: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct MojangUUID {
+    id: Uuid,
+}
+
 // === Routes ===
 
 pub fn router() -> Router {
@@ -104,29 +109,20 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
     }))
 }
 
-/// (technically) no-op. forwards the request straight to mctiers
-///
-/// BEWARE !!!!!!!!!!!!!!!!!!! uuid is now returned WITH dashes !!!!
-pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<Json<PlayerInfo>> {
-    let url = format!("https://mctiers.com/api/search_profile/{name}");
+/// mctiers `search_profile` is not used here because their username cache can be outdated
+pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<impl IntoResponse> {
+    let url = format!("https://api.mojang.com/users/profiles/minecraft/{name}");
 
-    let start = Instant::now();
     let response = crate::CLIENT.get(url).send().await?;
+    if response.status() != StatusCode::OK {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    }
 
-    let delta_time = start.elapsed().as_secs_f64();
-    let status = response.status().as_u16().to_string();
-    let labels = [("path", String::from("search_profile")), ("status", status)];
+    let response: MojangUUID = response.json().await?;
 
-    metrics::counter!(MCTIERS_REQS_KEY, &labels).increment(1);
-    metrics::histogram!(MCTIERS_REQ_DURATION_KEY, &labels).record(delta_time);
-
-    let player: PlayerInfo = response.error_for_status()?.json().await?;
-
-    get_cache()
-        .set_player_info(player.uuid, Some(player.clone()))
-        .await?;
-
-    Ok(Json(player))
+    get_tier(Path(response.id))
+        .await
+        .map(IntoResponse::into_response)
 }
 
 // === Utility functions ===
