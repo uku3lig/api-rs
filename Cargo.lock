@@ -56,7 +56,7 @@ dependencies = [
  "dotenvy",
  "metrics",
  "metrics-exporter-prometheus",
- "redis 0.27.2",
+ "redis 0.27.3",
  "redis-macros",
  "reqwest 0.12.8",
  "serde",
@@ -209,7 +209,7 @@ checksum = "1781f22daa0ae97d934fdf04a5c66646f154a164c4bdc157ec8d3c11166c05cc"
 dependencies = [
  "async-trait",
  "bb8",
- "redis 0.27.2",
+ "redis 0.27.3",
 ]
 
 [[package]]
@@ -1203,9 +1203,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.27.2"
+version = "0.27.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7e86f5670bd8b028edfb240f0616cad620705b31ec389d55e4f3da2c38dcd48"
+checksum = "92f61607c4c4442b575fbc3f31a5dd4e5dd69cfea8f6afec5b83e24f61c126ab"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -1232,7 +1232,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90a7a4a7b88300d28a3251c64b5c74e57e46c0cd2238cce81ec0927793255e49"
 dependencies = [
  "deadpool-redis",
- "redis 0.27.2",
+ "redis 0.27.3",
  "redis-macros-derive",
  "serde",
  "serde_json",
