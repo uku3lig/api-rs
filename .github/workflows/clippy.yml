@@ -4,8 +4,7 @@ on:
 jobs:
   clippy:
     permissions:
-      contents: read
-      security-events: write
+      checks: write
 
     runs-on: ubuntu-latest
     steps:
