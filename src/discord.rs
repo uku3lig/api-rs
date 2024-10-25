@@ -1,19 +1,18 @@
-use std::env;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::Context;
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum::{extract::Query, response::IntoResponse};
 use serde::{Deserialize, Serialize};
-use serenity::all::{ChannelId, CreateInvite, Http};
+use serenity::all::{CreateInvite, Http};
 
+use crate::config::EnvCfg;
 use crate::{util::IntoAppError, RouteResponse};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-static TURNSTILE_SECRET: OnceLock<String> = OnceLock::new();
 static SERENITY_HTTP: OnceLock<Http> = OnceLock::new();
-static CHANNEL_ID: OnceLock<ChannelId> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TurnstileData {
@@ -27,19 +26,10 @@ pub struct TurnstileResponse {
     error_codes: Vec<String>,
 }
 
-pub async fn init_bot() -> anyhow::Result<()> {
-    let turnstile_secret = env::var("TURNSTILE_SECRET").expect("TURNSTILE_SECRET not set");
-
-    let channel_id = env::var("CHANNEL_ID").expect("CHANNEL_ID not set");
-    let channel_id = ChannelId::new(channel_id.parse()?);
-
-    let token = env::var("BOT_TOKEN").expect("BOT_TOKEN not set");
-    let http = Http::new(token.as_str());
+pub async fn init_bot(config: &EnvCfg) -> anyhow::Result<()> {
+    let http = Http::new(&config.bot_token);
 
     let user = http.get_current_user().await?;
-
-    TURNSTILE_SECRET.set(turnstile_secret).unwrap();
-    CHANNEL_ID.set(channel_id).unwrap();
     SERENITY_HTTP.set(http).unwrap();
 
     tracing::info!("successfully logged in to discord bot {}!", user.name);
@@ -49,12 +39,14 @@ pub async fn init_bot() -> anyhow::Result<()> {
 
 pub async fn generate_invite(
     Query(data): Query<TurnstileData>,
+    State(config): State<Arc<EnvCfg>>,
 ) -> RouteResponse<impl IntoResponse> {
-    let secret = TURNSTILE_SECRET.get().context("turnstile secret not set")?;
     let http = SERENITY_HTTP.get().context("bot token not set")?;
-    let channel_id = CHANNEL_ID.get().context("channel id not set")?;
 
-    let body = [("secret", secret), ("response", &data.token)];
+    let body = [
+        ("secret", &config.turnstile_secret),
+        ("response", &data.token),
+    ];
     let request = crate::CLIENT.post(VERIF_URL).form(&body).build()?;
 
     let response: TurnstileResponse = crate::CLIENT
@@ -69,7 +61,8 @@ pub async fn generate_invite(
         return (StatusCode::BAD_REQUEST, message.as_str()).into_app_err();
     }
 
-    let invite = channel_id
+    let invite = config
+        .channel_id
         .create_invite(http, CreateInvite::new().max_uses(1))
         .await?;
 

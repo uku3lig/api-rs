@@ -1,4 +1,4 @@
-use std::{env, time::Instant};
+use std::time::Instant;
 
 use axum::{extract::Request, middleware::Next, response::IntoResponse, routing::get, Router};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
@@ -12,7 +12,7 @@ const EXPONENTIAL_SECONDS: &[f64] = &[
     0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
 ];
 
-pub async fn start_metrics_app() -> anyhow::Result<()> {
+pub async fn start_metrics_app(socket_addr: &str) -> anyhow::Result<()> {
     let handle = PrometheusBuilder::new()
         .set_buckets_for_metric(
             Matcher::Suffix("duration_seconds".to_string()),
@@ -22,7 +22,6 @@ pub async fn start_metrics_app() -> anyhow::Result<()> {
 
     let app = Router::new().route("/metrics", get(move || std::future::ready(handle.render())));
 
-    let socket_addr = env::var("METRICS_SOCKET_ADDR").unwrap_or("127.0.0.1:5001".into());
     let listener = tokio::net::TcpListener::bind(socket_addr).await?;
     tracing::info!("metrics listening on {}", listener.local_addr()?);
 

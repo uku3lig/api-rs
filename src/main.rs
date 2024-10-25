@@ -1,22 +1,25 @@
 #![warn(clippy::pedantic)]
 
 mod cache;
+mod config;
 mod discord;
 mod downloads;
 mod metrics;
 mod tiers;
 mod util;
 
-use crate::util::AppError;
+use std::sync::{Arc, LazyLock, OnceLock};
+
 use axum::routing::get;
 use axum::{middleware, Router};
-use cache::Storage;
 use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::StatusCode;
-use std::env;
-use std::sync::{LazyLock, OnceLock};
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
+
+use crate::cache::Storage;
+use crate::config::EnvCfg;
+use crate::util::AppError;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -45,29 +48,34 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt::init();
 
-    tokio::try_join!(start_main_app(), metrics::start_metrics_app())?;
+    let config = Arc::new(envy::from_env::<EnvCfg>()?);
+
+    tokio::try_join!(
+        start_main_app(config.clone()),
+        metrics::start_metrics_app(&config.metrics_socket_addr)
+    )?;
 
     tracing::info!("shutting down!");
 
     Ok(())
 }
 
-async fn start_main_app() -> anyhow::Result<()> {
+async fn start_main_app(config: Arc<EnvCfg>) -> anyhow::Result<()> {
     let app = Router::new()
         .merge(downloads::router())
         .merge(tiers::router())
         .route("/generate_invite", get(discord::generate_invite))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}))
-        .layer(middleware::from_fn(metrics::track));
+        .layer(middleware::from_fn(metrics::track))
+        .with_state(config.clone());
 
-    discord::init_bot().await?;
+    discord::init_bot(&config).await?;
 
-    let storage = Storage::new_from_env().await?;
+    let storage = Storage::new(&config.redis_url).await?;
     CACHE.set(storage).unwrap();
 
-    let socket_addr = env::var("SOCKET_ADDR").unwrap_or("0.0.0.0:5000".into());
-    let listener = tokio::net::TcpListener::bind(socket_addr).await?;
+    let listener = tokio::net::TcpListener::bind(&config.socket_addr).await?;
     tracing::info!("main app listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)

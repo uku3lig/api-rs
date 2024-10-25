@@ -19,7 +19,7 @@ pub struct ShieldsBadge {
     pub named_logo: String,
 }
 
-pub fn router() -> Router {
+pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     let router = Router::new()
         .route("/:name", get(downloads))
         .route("/:name/shields", get(downloads_shields));

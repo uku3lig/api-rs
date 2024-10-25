@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::Context;
 use anyhow::Result;
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
@@ -20,9 +19,8 @@ pub struct Storage {
 }
 
 impl Storage {
-    pub async fn new_from_env() -> anyhow::Result<Self> {
-        let url = std::env::var("REDIS_URL").context("REDIS_URL not set")?;
-        let mut client = Client::open(url.clone())?;
+    pub async fn new(url: &str) -> anyhow::Result<Self> {
+        let mut client = Client::open(url)?;
 
         if client.check_connection() {
             let manager = RedisConnectionManager::new(url)?;

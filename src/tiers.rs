@@ -58,7 +58,7 @@ struct MojangUUID {
 
 // === Routes ===
 
-pub fn router() -> Router {
+pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     let router = Router::new()
         .route("/all", get(get_all))
         .route("/profile/:uuid", get(get_tier))
