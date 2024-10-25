@@ -12,7 +12,7 @@ const EXPONENTIAL_SECONDS: &[f64] = &[
     0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
 ];
 
-pub async fn start_metrics_app(socket_addr: &str) -> anyhow::Result<()> {
+pub async fn start_metrics_app(socket_addr: String) -> anyhow::Result<()> {
     let handle = PrometheusBuilder::new()
         .set_buckets_for_metric(
             Matcher::Suffix("duration_seconds".to_string()),

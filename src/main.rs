@@ -8,7 +8,7 @@ mod metrics;
 mod tiers;
 mod util;
 
-use std::sync::{Arc, LazyLock, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use axum::routing::get;
 use axum::{middleware, Router};
@@ -36,7 +36,11 @@ static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .unwrap()
 });
 
-static CACHE: OnceLock<cache::Storage> = OnceLock::new();
+struct AppState {
+    config: EnvCfg,
+    cache: cache::Storage,
+    http: serenity::http::Http,
+}
 
 type RouteResponse<T> = Result<T, AppError>;
 
@@ -48,11 +52,12 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt::init();
 
-    let config = Arc::new(envy::from_env::<EnvCfg>()?);
+    let config = envy::from_env::<EnvCfg>()?;
+    let metrics_addr = config.metrics_socket_addr.clone();
 
     tokio::try_join!(
-        start_main_app(config.clone()),
-        metrics::start_metrics_app(&config.metrics_socket_addr)
+        start_main_app(config),
+        metrics::start_metrics_app(metrics_addr)
     )?;
 
     tracing::info!("shutting down!");
@@ -60,7 +65,16 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn start_main_app(config: Arc<EnvCfg>) -> anyhow::Result<()> {
+async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
+    let http = discord::init_bot(&config).await?;
+    let cache = Storage::new(&config.redis_url).await?;
+
+    let state = Arc::new(AppState {
+        config,
+        cache,
+        http,
+    });
+
     let app = Router::new()
         .merge(downloads::router())
         .merge(tiers::router())
@@ -68,14 +82,9 @@ async fn start_main_app(config: Arc<EnvCfg>) -> anyhow::Result<()> {
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}))
         .layer(middleware::from_fn(metrics::track))
-        .with_state(config.clone());
+        .with_state(state.clone());
 
-    discord::init_bot(&config).await?;
-
-    let storage = Storage::new(&config.redis_url).await?;
-    CACHE.set(storage).unwrap();
-
-    let listener = tokio::net::TcpListener::bind(&config.socket_addr).await?;
+    let listener = tokio::net::TcpListener::bind(&state.config.socket_addr).await?;
     tracing::info!("main app listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
@@ -84,8 +93,4 @@ async fn start_main_app(config: Arc<EnvCfg>) -> anyhow::Result<()> {
         })
         .await
         .map_err(anyhow::Error::from)
-}
-
-fn get_cache() -> &'static Storage {
-    CACHE.get().unwrap()
 }

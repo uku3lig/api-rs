@@ -1,6 +1,5 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
-use anyhow::Context;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Redirect;
@@ -9,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use serenity::all::{CreateInvite, Http};
 
 use crate::config::EnvCfg;
+use crate::AppState;
 use crate::{util::IntoAppError, RouteResponse};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-static SERENITY_HTTP: OnceLock<Http> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TurnstileData {
@@ -26,25 +25,21 @@ pub struct TurnstileResponse {
     error_codes: Vec<String>,
 }
 
-pub async fn init_bot(config: &EnvCfg) -> anyhow::Result<()> {
+pub async fn init_bot(config: &EnvCfg) -> anyhow::Result<Http> {
     let http = Http::new(&config.bot_token);
 
     let user = http.get_current_user().await?;
-    SERENITY_HTTP.set(http).unwrap();
-
     tracing::info!("successfully logged in to discord bot {}!", user.name);
 
-    Ok(())
+    Ok(http)
 }
 
 pub async fn generate_invite(
     Query(data): Query<TurnstileData>,
-    State(config): State<Arc<EnvCfg>>,
+    State(state): State<Arc<AppState>>,
 ) -> RouteResponse<impl IntoResponse> {
-    let http = SERENITY_HTTP.get().context("bot token not set")?;
-
     let body = [
-        ("secret", &config.turnstile_secret),
+        ("secret", &state.config.turnstile_secret),
         ("response", &data.token),
     ];
     let request = crate::CLIENT.post(VERIF_URL).form(&body).build()?;
@@ -61,9 +56,10 @@ pub async fn generate_invite(
         return (StatusCode::BAD_REQUEST, message.as_str()).into_app_err();
     }
 
-    let invite = config
+    let invite = state
+        .config
         .channel_id
-        .create_invite(http, CreateInvite::new().max_uses(1))
+        .create_invite(&state.http, CreateInvite::new().max_uses(1))
         .await?;
 
     let link = format!("https://discord.com/invite/{}", invite.code);

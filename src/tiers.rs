@@ -1,11 +1,16 @@
-use std::{collections::HashMap, fmt::Display, time::Instant};
+use std::{collections::HashMap, fmt::Display, sync::Arc, time::Instant};
 
-use axum::{extract::Path, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    extract::{Path, State},
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{get_cache, RouteResponse};
+use crate::{AppState, RouteResponse};
 
 const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
 const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
@@ -58,7 +63,7 @@ struct MojangUUID {
 
 // === Routes ===
 
-pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
+pub fn router() -> Router<Arc<AppState>> {
     let router = Router::new()
         .route("/all", get(get_all))
         .route("/profile/:uuid", get(get_tier))
@@ -67,7 +72,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new().nest("/tiers", router)
 }
 
-pub async fn get_tier(Path(uuid): Path<Uuid>) -> RouteResponse<impl IntoResponse> {
+pub async fn get_tier(
+    Path(uuid): Path<Uuid>,
+    State(state): State<Arc<AppState>>,
+) -> RouteResponse<impl IntoResponse> {
     // uuid version 4 and ietf variant, used by UUID#randomUUID
     if uuid.get_version() != Some(uuid::Version::Random)
         || uuid.get_variant() != uuid::Variant::RFC4122
@@ -75,11 +83,11 @@ pub async fn get_tier(Path(uuid): Path<Uuid>) -> RouteResponse<impl IntoResponse
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let profile = if get_cache().has_player_info(uuid).await? {
-        get_cache().get_player_info(uuid).await?
+    let profile = if state.cache.has_player_info(uuid).await? {
+        state.cache.get_player_info(uuid).await?
     } else {
         let p = fetch_tier(&uuid).await;
-        get_cache().set_player_info(uuid, p.clone()).await?;
+        state.cache.set_player_info(uuid, p.clone()).await?;
         p
     };
 
@@ -91,11 +99,11 @@ pub async fn get_tier(Path(uuid): Path<Uuid>) -> RouteResponse<impl IntoResponse
     Ok(res)
 }
 
-pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
+pub async fn get_all(State(state): State<Arc<AppState>>) -> RouteResponse<Json<AllPlayerInfo>> {
     let mut players = Vec::new();
     let mut unknown = Vec::new();
 
-    for (uuid, profile) in get_cache().get_all_players().await? {
+    for (uuid, profile) in state.cache.get_all_players().await? {
         match profile {
             Some(p) => players.push(p),
             None => unknown.push(uuid),
@@ -110,7 +118,10 @@ pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
 }
 
 /// mctiers `search_profile` is not used here because their username cache can be outdated
-pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<impl IntoResponse> {
+pub async fn search_profile(
+    Path(name): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> RouteResponse<impl IntoResponse> {
     let url = format!("https://api.mojang.com/users/profiles/minecraft/{name}");
 
     let response = crate::CLIENT.get(url).send().await?;
@@ -120,7 +131,7 @@ pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<impl Into
 
     let response: MojangUUID = response.json().await?;
 
-    get_tier(Path(response.id))
+    get_tier(Path(response.id), State(state))
         .await
         .map(IntoResponse::into_response)
 }
