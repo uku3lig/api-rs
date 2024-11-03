@@ -48,7 +48,11 @@ in {
       enable = true;
       wantedBy = mkDefault ["multi-user.target"];
       wants = mkDefault ["network-online.target"];
-      after = mkDefault ["network.target" "network-online.target" "redis-api-rs.service"];
+      after = mkDefault [
+        "network.target"
+        "network-online.target"
+        "redis-api-rs.service"
+      ];
       script = ''
         ${getExe cfg.package}
       '';
