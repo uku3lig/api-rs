@@ -29,7 +29,7 @@ serenity = { version = "0.12.4", default-features = false, features = [
     "model",
     "rustls_backend",
 ] }
-tokio = { version = "1.41.1", features = [
+tokio = { version = "1.42.0", features = [
     "rt-multi-thread",
     "macros",
     "signal",
