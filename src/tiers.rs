@@ -15,16 +15,6 @@ use crate::{AppState, RouteResponse};
 const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
 const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
 
-const TIERLISTS: [(&str, &str); 7] = [
-    ("vanilla", "Vanilla"),
-    ("sword", "Sword"),
-    ("uhc", "UHC"),
-    ("pot", "Pot"),
-    ("neth_pot", "Netherite Pot"),
-    ("smp", "SMP"),
-    ("axe", "Axe"),
-];
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerInfo {
     pub uuid: Uuid,
@@ -147,21 +137,18 @@ pub async fn search_profile(
         .map(IntoResponse::into_response)
 }
 
-pub async fn get_tierlists() -> impl IntoResponse {
-    let lists = TIERLISTS
-        .iter()
-        .map(|(id, name)| {
-            let value = serde_json::json!({
-                "title": name,
-                "info_text": "",
-                "kit_image": "",
-            });
+pub async fn get_tierlists() -> RouteResponse<impl IntoResponse> {
+    // of course i can't do this because mctiers blocks all tiertagger requests
+    // Ok(Redirect::to("https://mctiers.com/api/tierlists"))
 
-            (id, value)
-        })
-        .collect::<HashMap<_, _>>();
+    let json: serde_json::Value = crate::CLIENT
+        .get("https://mctiers.com/api/tierlists")
+        .send()
+        .await?
+        .json()
+        .await?;
 
-    Json(lists)
+    Ok(Json(json))
 }
 
 // === Utility functions ===
