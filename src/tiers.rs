@@ -170,19 +170,23 @@ async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
     let url = format!("https://mctiers.com/api/profile/{}", uuid.as_simple());
 
     let start = Instant::now();
-    let response = crate::CLIENT.get(url).send().await;
+    let response = crate::CLIENT
+        .get(url)
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status);
     let delta_time = start.elapsed().as_secs_f64();
 
-    if let Ok(ref response) = response {
-        let status = response.status().as_u16().to_string();
-        let labels = [("path", String::from("profile")), ("status", status)];
+    let response = match response {
+        Ok(res) => {
+            let status = res.status().as_u16().to_string();
+            let labels = [("path", String::from("profile")), ("status", status)];
 
-        metrics::counter!(MCTIERS_REQS_KEY, &labels).increment(1);
-        metrics::histogram!(MCTIERS_REQ_DURATION_KEY, &labels).record(delta_time);
-    }
+            metrics::counter!(MCTIERS_REQS_KEY, &labels).increment(1);
+            metrics::histogram!(MCTIERS_REQ_DURATION_KEY, &labels).record(delta_time);
 
-    let response = match response.and_then(reqwest::Response::error_for_status) {
-        Ok(r) => r,
+            res
+        }
         Err(e) => {
             if e.status() != Some(StatusCode::NOT_FOUND) {
                 tracing::warn!("Failed to fetch profile `{uuid}`: {e}");
