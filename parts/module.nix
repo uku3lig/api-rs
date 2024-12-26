@@ -1,16 +1,17 @@
 # thanks getchoo :3
-self: {
+self:
+{
   config,
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.services.api-rs;
 
   inherit (pkgs.stdenv.hostPlatform) system;
 
-  inherit
-    (lib)
+  inherit (lib)
     getExe
     literalExpression
     mdDoc
@@ -21,10 +22,11 @@ self: {
     mkPackageOption
     types
     ;
-in {
+in
+{
   options.services.api-rs = {
     enable = mkEnableOption "api-rs";
-    package = mkPackageOption self.packages.${system} "default" {};
+    package = mkPackageOption self.packages.${system} "default" { };
     environmentFile = mkOption {
       description = mdDoc ''
         Environment file as defined in {manpage}`systemd.exec(5)`
@@ -46,8 +48,8 @@ in {
 
     systemd.services."api-rs" = {
       enable = true;
-      wantedBy = mkDefault ["multi-user.target"];
-      wants = mkDefault ["network-online.target"];
+      wantedBy = mkDefault [ "multi-user.target" ];
+      wants = mkDefault [ "network-online.target" ];
       after = mkDefault [
         "network.target"
         "network-online.target"
@@ -86,7 +88,7 @@ in {
     };
 
     users = {
-      groups.api-rs = {};
+      groups.api-rs = { };
       users.api-rs = {
         isSystemUser = true;
         group = "api-rs";
