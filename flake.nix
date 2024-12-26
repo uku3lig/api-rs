@@ -36,7 +36,7 @@
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               clippy
-              rustfmt
+              (rustfmt.override { asNightly = true; })
               rust-analyzer
 
               redis

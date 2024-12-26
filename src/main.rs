@@ -10,16 +10,15 @@ mod util;
 
 use std::sync::{Arc, LazyLock};
 
-use axum::routing::get;
-use axum::{middleware, Router};
-use reqwest::header::{HeaderMap, USER_AGENT};
-use reqwest::StatusCode;
+use axum::{middleware, routing::get, Router};
+use reqwest::{
+    header::{HeaderMap, USER_AGENT},
+    StatusCode,
+};
 use tokio::signal::unix::{signal, SignalKind};
 use tower_http::trace::TraceLayer;
 
-use crate::cache::Storage;
-use crate::config::EnvCfg;
-use crate::util::AppError;
+use crate::{cache::Storage, config::EnvCfg, util::AppError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

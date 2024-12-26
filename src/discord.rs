@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::Redirect;
-use axum::{extract::Query, response::IntoResponse};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Redirect},
+};
 use serde::{Deserialize, Serialize};
 use serenity::all::{CreateInvite, Http};
 
-use crate::config::EnvCfg;
-use crate::AppState;
-use crate::{util::IntoAppError, RouteResponse};
+use crate::{config::EnvCfg, util::IntoAppError, AppState, RouteResponse};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
