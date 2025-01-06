@@ -13,7 +13,7 @@ bb8-redis = "0.18.0"
 dotenvy = "0.15.7"
 envy = "0.4.2"
 metrics = "0.24.1"
-metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
+metrics-exporter-prometheus = { version = "0.16.1", default-features = false }
 redis = { version = "0.27.6", features = ["ahash", "tokio-comp"] }
 redis-macros = "0.4.3"
 regex = "1.11.1"
