@@ -67,8 +67,8 @@ pub fn router() -> Router<Arc<AppState>> {
     let router = Router::new()
         .route("/all", get(get_all))
         .route("/tierlists", get(get_tierlists))
-        .route("/profile/:uuid", get(get_tier))
-        .route("/search_profile/:name", get(search_profile));
+        .route("/profile/{uuid}", get(get_tier))
+        .route("/search_profile/{name}", get(search_profile));
 
     Router::new().nest("/tiers", router)
 }
