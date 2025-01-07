@@ -40,7 +40,7 @@ pub trait IntoAppError {
     fn into_app_err<T>(self) -> Result<T, AppError>;
 }
 
-impl<'a> IntoAppError for (StatusCode, &'a str) {
+impl IntoAppError for (StatusCode, &str) {
     fn into_app_err<T>(self) -> Result<T, AppError> {
         Err(AppError::StatusCode(self.0, self.1.into()))
     }
