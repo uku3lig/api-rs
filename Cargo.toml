@@ -17,7 +17,7 @@ metrics-exporter-prometheus = { version = "0.16.1", default-features = false }
 redis = { version = "0.27.6", features = ["ahash", "tokio-comp"] }
 redis-macros = "0.4.3"
 regex = "1.11.1"
-reqwest = { version = "0.12.9", default-features = false, features = [
+reqwest = { version = "0.12.12", default-features = false, features = [
     "http2",
     "charset",
     "json",
