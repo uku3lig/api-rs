@@ -2,8 +2,10 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use bb8::Pool;
-use bb8_redis::RedisConnectionManager;
-use redis::{AsyncCommands, Client, ConnectionLike, FromRedisValue};
+use bb8_redis::{
+    redis::{self, AsyncCommands, Client, ConnectionLike, FromRedisValue},
+    RedisConnectionManager,
+};
 use redis_macros::ToRedisArgs;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
