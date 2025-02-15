@@ -24,6 +24,7 @@ pub struct PlayerInfo {
     points: u32,
     overall: u32,
     badges: Vec<Badge>,
+    combat_master: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
