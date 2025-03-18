@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use bb8::Pool;
 use bb8_redis::{
-    redis::{self, AsyncCommands, Client, ConnectionLike, FromRedisValue},
     RedisConnectionManager,
+    redis::{self, AsyncCommands, Client, ConnectionLike, FromRedisValue},
 };
 use redis_macros::ToRedisArgs;
 use serde::{Deserialize, Serialize};
@@ -111,7 +111,9 @@ impl FromRedisValue for OptionalPlayerInfo {
                     if let Ok(s) = serde_json::from_str(s) {
                         Ok(s)
                     } else {
-                        redis_error(format!("Response type not deserializable with serde_json. (response was {v:?})"))
+                        redis_error(format!(
+                            "Response type not deserializable with serde_json. (response was {v:?})"
+                        ))
                     }
                 } else {
                     redis_error(format!(

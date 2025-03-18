@@ -2,9 +2,9 @@ use anyhow::Result;
 use axum::extract::Json;
 use regex::Regex;
 use reqwest::{
+    Client,
     header::{ACCEPT, AUTHORIZATION, LOCATION},
     redirect::Policy,
-    Client,
 };
 use serde::Deserialize;
 use serde_json::json;

@@ -8,7 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serenity::all::{CreateInvite, Http};
 
-use crate::{config::EnvCfg, util::IntoAppError, AppState, RouteResponse};
+use crate::{AppState, RouteResponse, config::EnvCfg, util::IntoAppError};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 

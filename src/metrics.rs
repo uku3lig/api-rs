@@ -1,9 +1,9 @@
 use std::time::Instant;
 
-use axum::{extract::Request, middleware::Next, response::IntoResponse, routing::get, Router};
+use axum::{Router, extract::Request, middleware::Next, response::IntoResponse, routing::get};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use reqwest::header::USER_AGENT;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 const TOTAL_REQS_KEY: &str = "api_rs_requests_total";
 const REQ_DURATION_KEY: &str = "api_rs_request_duration_seconds";

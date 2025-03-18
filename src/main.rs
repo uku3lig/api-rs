@@ -12,15 +12,14 @@ mod util;
 use std::sync::{Arc, LazyLock};
 
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{get, post},
-    Router,
 };
 use reqwest::{
-    header::{HeaderMap, USER_AGENT},
     StatusCode,
+    header::{HeaderMap, USER_AGENT},
 };
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tower_http::trace::TraceLayer;
 
 use crate::{cache::Storage, config::EnvCfg, util::AppError};

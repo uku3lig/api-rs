@@ -1,10 +1,10 @@
 use std::{collections::HashMap, fmt::Display, sync::Arc, time::Instant};
 
 use axum::{
+    Json, Router,
     extract::{Path, State},
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
