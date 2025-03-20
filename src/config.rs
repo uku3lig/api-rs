@@ -11,6 +11,7 @@ pub struct EnvCfg {
     pub turnstile_secret: String,
     pub channel_id: ChannelId,
     pub bot_token: String,
+    pub lastfm_key: String,
 }
 
 fn default_addr() -> String {

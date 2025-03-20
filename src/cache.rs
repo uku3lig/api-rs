@@ -16,7 +16,7 @@ const PROFILE_KEY: &str = "tiers-v1-profile";
 
 #[derive(Debug)]
 pub struct Storage {
-    pool: Pool<RedisConnectionManager>,
+    pub pool: Pool<RedisConnectionManager>,
 }
 
 impl Storage {

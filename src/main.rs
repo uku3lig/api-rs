@@ -4,6 +4,7 @@ mod cache;
 mod config;
 mod discord;
 mod downloads;
+mod lastfm;
 mod metrics;
 mod tiers;
 mod twitter;
@@ -83,6 +84,7 @@ async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
         .merge(tiers::router())
         .route("/generate_invite", get(discord::generate_invite))
         .route("/twitter", post(twitter::webhook))
+        .route("/now_playing", get(lastfm::now_playing))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}))
         .layer(middleware::from_fn(metrics::track))
