@@ -21,7 +21,7 @@ use reqwest::{
     header::{HeaderMap, USER_AGENT},
 };
 use tokio::signal::unix::{SignalKind, signal};
-use tower_http::trace::TraceLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{cache::Storage, config::EnvCfg, util::AppError};
 
@@ -88,6 +88,7 @@ async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}))
         .layer(middleware::from_fn(metrics::track))
+        .layer(CorsLayer::permissive())
         .with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind(&state.config.socket_addr).await?;
