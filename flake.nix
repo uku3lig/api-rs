@@ -39,7 +39,7 @@
               (rustfmt.override { asNightly = true; })
               rust-analyzer
 
-              redis
+              valkey
               xh
             ];
 
