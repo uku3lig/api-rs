@@ -14,7 +14,7 @@ dotenvy = "0.15.7"
 envy = "0.4.2"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.0", default-features = false }
-redis-macros = { version = "0.5.2", default-features = false, features = [
+redis-macros = { version = "0.5.3", default-features = false, features = [
     "macros",
 ] }
 regex = "1.11.1"
