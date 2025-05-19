@@ -1159,9 +1159,9 @@ dependencies = [
 
 [[package]]
 name = "redis-macros"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24f7a71063de53b8775b2a7be6f1fa72c373bb41391173fe63b1e382f9f9ef90"
+checksum = "35ccf385c8643426649ed7de6ce3ee094a0c3bd772893aa446674496312546d0"
 dependencies = [
  "redis-macros-derive",
 ]
