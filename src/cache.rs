@@ -7,6 +7,7 @@ use bb8_redis::{
     redis::{self, AsyncCommands, Client, ConnectionLike, FromRedisValue},
 };
 use redis_macros::ToRedisArgs;
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -55,17 +56,25 @@ impl Storage {
         &self,
         uuid: uuid::Uuid,
         player: Option<PlayerInfo>,
+        code: StatusCode,
     ) -> Result<()> {
         let key = format!("{PROFILE_KEY}:{uuid}");
         let mut con = self.pool.get().await?;
 
         // upstream cache is (approx): 200 => 2d, 404 => 5d
-        let hours = if player.is_some() { 24 } else { 48 };
+        let seconds = if player.is_some() {
+            24 * 60 * 60
+        } else if code.is_server_error() {
+            30
+        } else {
+            48 * 60 * 60
+        };
+
         let player: OptionalPlayerInfo = player.into();
 
         redis::pipe()
             .set(&key, player)
-            .expire(&key, 60 * 60 * hours)
+            .expire(&key, seconds)
             .query_async(&mut *con)
             .await
             .map_err(anyhow::Error::from)

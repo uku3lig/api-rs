@@ -88,7 +88,7 @@ pub async fn webhook(Json(data): Json<ProcessData>) {
             Ok(Some(attachments)) => webhook.send(&attachments).await,
             Ok(None) => {}
             Err(e) => tracing::warn!("Could not fetch cobalt data for {}: {e}", &data.tweet_url),
-        };
+        }
     });
 }
 

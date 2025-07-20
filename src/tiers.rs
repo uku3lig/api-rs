@@ -88,8 +88,8 @@ pub async fn get_tier(
     let profile = if state.cache.has_player_info(uuid).await? {
         state.cache.get_player_info(uuid).await?
     } else {
-        let p = fetch_tier(&uuid).await;
-        state.cache.set_player_info(uuid, p.clone()).await?;
+        let (p, code) = fetch_tier(&uuid).await;
+        state.cache.set_player_info(uuid, p.clone(), code).await?;
         p
     };
 
@@ -154,7 +154,7 @@ pub async fn get_tierlists() -> RouteResponse<impl IntoResponse> {
 
 // === Utility functions ===
 
-async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
+async fn fetch_tier(uuid: &Uuid) -> (Option<PlayerInfo>, StatusCode) {
     let url = format!("https://mctiers.com/api/profile/{}", uuid.as_simple());
 
     let start = Instant::now();
@@ -180,16 +180,21 @@ async fn fetch_tier(uuid: &Uuid) -> Option<PlayerInfo> {
                 tracing::warn!("Failed to fetch profile `{uuid}`: {e}");
             }
 
-            return None;
+            return (
+                None,
+                e.status().unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            );
         }
     };
 
+    let status = response.status();
+
     match response.json::<PlayerInfo>().await {
-        Ok(p) if p.rankings.is_empty() => None,
-        Ok(p) => Some(p),
+        Ok(p) if p.rankings.is_empty() => (None, StatusCode::NOT_FOUND),
+        Ok(p) => (Some(p), status),
         Err(e) => {
             tracing::warn!("Failed to parse profile `{uuid}`: {e}");
-            None
+            (None, status)
         }
     }
 }
