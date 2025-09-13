@@ -1,11 +1,6 @@
-use std::{collections::HashMap, fmt::Display, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
-use axum::{
-    Json, Router,
-    extract::{Path, State},
-    response::IntoResponse,
-    routing::get,
-};
+use axum::{Json, Router, extract::Path, response::IntoResponse, routing::get};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,43 +10,9 @@ use crate::{AppState, RouteResponse};
 const MCTIERS_REQS_KEY: &str = "api_rs_mctiers_reqs_total";
 const MCTIERS_REQ_DURATION_KEY: &str = "api_rs_mctiers_req_duration_seconds";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct PlayerInfo {
-    pub uuid: Uuid,
-    name: String,
-    rankings: HashMap<String, Ranking>,
-    region: String,
-    points: u32,
-    overall: u32,
-    badges: Vec<Badge>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Ranking {
-    tier: u8,
-    pos: u8,
-    peak_tier: Option<u8>,
-    peak_pos: Option<u8>,
-    attained: i64,
-    retired: bool,
-}
-
-impl Display for Ranking {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let high = if self.pos == 0 { 'H' } else { 'L' };
-        write!(f, "{}T{}", high, self.tier)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Badge {
-    title: String,
-    desc: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllPlayerInfo {
-    players: Vec<PlayerInfo>,
+    players: Vec<serde_json::Value>,
     unknown: Vec<Uuid>,
     fetch_unknown: bool,
 }
@@ -73,10 +34,7 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new().nest("/tiers", router)
 }
 
-pub async fn get_tier(
-    Path(uuid): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
-) -> RouteResponse<impl IntoResponse> {
+pub async fn get_tier(Path(uuid): Path<Uuid>) -> RouteResponse<impl IntoResponse> {
     // uuid version 4 and ietf variant, used by UUID#randomUUID
     if uuid.get_version() != Some(uuid::Version::Random)
         || uuid.get_variant() != uuid::Variant::RFC4122
@@ -84,45 +42,26 @@ pub async fn get_tier(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let profile = if state.cache.has_player_info(uuid).await? {
-        state.cache.get_player_info(uuid).await?
-    } else {
-        let (p, code) = fetch_tier(&uuid).await;
-        state.cache.set_player_info(uuid, p.clone(), code).await?;
-        p
-    };
+    let (profile, code) = fetch_tier(&uuid).await;
 
     let res = match profile {
-        None => StatusCode::NOT_FOUND.into_response(),
+        None => code.into_response(),
         Some(p) => Json(p).into_response(),
     };
 
     Ok(res)
 }
 
-pub async fn get_all(State(state): State<Arc<AppState>>) -> RouteResponse<Json<AllPlayerInfo>> {
-    let mut players = Vec::new();
-    let mut unknown = Vec::new();
-
-    for (uuid, profile) in state.cache.get_all_players().await? {
-        match profile {
-            Some(p) => players.push(p),
-            None => unknown.push(uuid),
-        }
-    }
-
+pub async fn get_all() -> RouteResponse<Json<AllPlayerInfo>> {
     Ok(Json(AllPlayerInfo {
-        players,
-        unknown,
+        players: Vec::new(),
+        unknown: Vec::new(),
         fetch_unknown: true,
     }))
 }
 
 /// mctiers `search_profile` is not used here because their username cache can be outdated
-pub async fn search_profile(
-    Path(name): Path<String>,
-    State(state): State<Arc<AppState>>,
-) -> RouteResponse<impl IntoResponse> {
+pub async fn search_profile(Path(name): Path<String>) -> RouteResponse<impl IntoResponse> {
     let url = format!("https://api.mojang.com/users/profiles/minecraft/{name}");
 
     let response = crate::CLIENT.get(url).send().await?;
@@ -132,7 +71,7 @@ pub async fn search_profile(
 
     let response: MojangUUID = response.json().await?;
 
-    get_tier(Path(response.id), State(state))
+    get_tier(Path(response.id))
         .await
         .map(IntoResponse::into_response)
 }
@@ -153,7 +92,7 @@ pub async fn get_tierlists() -> RouteResponse<impl IntoResponse> {
 
 // === Utility functions ===
 
-async fn fetch_tier(uuid: &Uuid) -> (Option<PlayerInfo>, StatusCode) {
+async fn fetch_tier(uuid: &Uuid) -> (Option<serde_json::Value>, StatusCode) {
     let url = format!("https://mctiers.com/api/profile/{}", uuid.as_simple());
 
     let start = Instant::now();
@@ -188,8 +127,7 @@ async fn fetch_tier(uuid: &Uuid) -> (Option<PlayerInfo>, StatusCode) {
 
     let status = response.status();
 
-    match response.json::<PlayerInfo>().await {
-        Ok(p) if p.rankings.is_empty() => (None, StatusCode::NOT_FOUND),
+    match response.json::<serde_json::Value>().await {
         Ok(p) => (Some(p), status),
         Err(e) => {
             tracing::warn!("Failed to parse profile `{uuid}`: {e}");
