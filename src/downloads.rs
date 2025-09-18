@@ -66,12 +66,12 @@ fn format_number(n: u32) -> String {
 
     for unit in UNITS {
         if n < 1000.0 {
-            return format!("{n:.1}{unit}");
+            return format!("{n:.2}{unit}");
         }
 
         n /= 1000.0;
     }
 
     let last = UNITS.last().unwrap();
-    format!("{n:.1}{last}")
+    format!("{n:.2}{last}")
 }
