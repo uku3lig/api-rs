@@ -17,7 +17,7 @@ metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 redis-macros = { version = "0.5.6", default-features = false, features = [
     "macros",
 ] }
-regex = "1.11.3"
+regex = "1.12.2"
 reqwest = { version = "0.12.23", default-features = false, features = [
     "http2",
     "charset",
