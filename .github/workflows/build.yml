@@ -1,9 +1,10 @@
+# thanks getchoo :3
 name: build and cache stuff
 
 on:
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 jobs:
