@@ -1,7 +1,6 @@
 {
   lib,
   rustPlatform,
-  mold-wrapped,
   self,
 }:
 let
@@ -14,11 +13,7 @@ rustPlatform.buildRustPackage {
 
   src = self;
 
-  nativeBuildInputs = [ mold-wrapped ];
-
   cargoLock.lockFile = ../Cargo.lock;
-
-  RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
 
   doCheck = false;
 
