@@ -104,27 +104,24 @@ pub enum OptionalPlayerInfo {
 }
 
 impl FromRedisValue for OptionalPlayerInfo {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        match *v {
+    fn from_redis_value(v: redis::Value) -> Result<Self, redis::ParsingError> {
+        match v {
             redis::Value::Nil => Ok(Self::Unknown),
             redis::Value::BulkString(ref bytes) => {
                 if let Ok(s) = std::str::from_utf8(bytes) {
                     if let Ok(s) = serde_json::from_str(s) {
                         Ok(s)
                     } else {
-                        redis_error(format!(
+                        Err(format!(
                             "Response type not deserializable with serde_json. (response was {v:?})"
-                        ))
+                        )
+                        .into())
                     }
                 } else {
-                    redis_error(format!(
-                        "Response was not valid UTF-8 string. (response was {v:?})"
-                    ))
+                    Err(format!("Response was not valid UTF-8 string. (response was {v:?})").into())
                 }
             }
-            _ => redis_error(format!(
-                "Response type was not deserializable. (response was {v:?})"
-            )),
+            _ => Err(format!("Response type was not deserializable. (response was {v:?})").into()),
         }
     }
 }
@@ -145,12 +142,4 @@ impl From<OptionalPlayerInfo> for Option<PlayerInfo> {
             OptionalPlayerInfo::Unknown => None,
         }
     }
-}
-
-fn redis_error(msg: String) -> redis::RedisResult<OptionalPlayerInfo> {
-    Err(redis::RedisError::from((
-        redis::ErrorKind::TypeError,
-        "Response was of incompatible type",
-        msg,
-    )))
 }
