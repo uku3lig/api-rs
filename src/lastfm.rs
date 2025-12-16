@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State};
-use bb8_redis::redis::{self, AsyncCommands};
+use redis::AsyncCommands;
 use serde_json::Value;
 
 use crate::{AppState, CLIENT, RouteResponse, util::AppError};
@@ -9,7 +9,11 @@ use crate::{AppState, CLIENT, RouteResponse, util::AppError};
 const REDIS_KEY: &str = "now_listening";
 
 pub async fn now_playing(State(state): State<Arc<AppState>>) -> RouteResponse<Json<Value>> {
-    let mut conn = state.cache.pool.get().await?;
+    let mut conn = state
+        .cache
+        .client
+        .get_multiplexed_async_connection()
+        .await?;
 
     if conn.exists(REDIS_KEY).await? {
         let cached: String = conn.get(REDIS_KEY).await?;
@@ -30,7 +34,7 @@ pub async fn now_playing(State(state): State<Arc<AppState>>) -> RouteResponse<Js
         redis::pipe()
             .set(REDIS_KEY, serde_json::to_string(&json)?)
             .expire(REDIS_KEY, 15)
-            .query_async::<()>(&mut *conn)
+            .query_async::<()>(&mut conn)
             .await?;
 
         Ok(Json(json))

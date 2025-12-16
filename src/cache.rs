@@ -1,11 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use bb8::Pool;
-use bb8_redis::{
-    RedisConnectionManager,
-    redis::{self, AsyncCommands, Client, ConnectionLike, FromRedisValue},
-};
+use redis::{AsyncCommands, Client, FromRedisValue};
 use redis_macros::ToRedisArgs;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,35 +12,28 @@ const PROFILE_KEY: &str = "tiers-v1-profile";
 
 #[derive(Debug)]
 pub struct Storage {
-    pub pool: Pool<RedisConnectionManager>,
+    pub client: Client,
 }
 
 impl Storage {
-    pub async fn new(url: &str) -> anyhow::Result<Self> {
-        let mut client = Client::open(url)?;
+    pub fn new(url: &str) -> anyhow::Result<Self> {
+        let client = Client::open(url)?;
 
-        if client.check_connection() {
-            let manager = RedisConnectionManager::new(url)?;
-            let pool = Pool::builder().max_size(20).build(manager).await?;
-
-            Ok(Self { pool })
-        } else {
-            anyhow::bail!("failed to connect to redis");
-        }
+        Ok(Self { client })
     }
 
     // === PlayerInfo ===
 
     pub async fn has_player_info(&self, uuid: uuid::Uuid) -> Result<bool> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.pool.get().await?;
+        let mut con = self.client.get_multiplexed_async_connection().await?;
 
         con.exists(&key).await.map_err(anyhow::Error::from)
     }
 
     pub async fn get_player_info(&self, uuid: uuid::Uuid) -> Result<Option<PlayerInfo>> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.pool.get().await?;
+        let mut con = self.client.get_multiplexed_async_connection().await?;
 
         let player: OptionalPlayerInfo = con.get(&key).await?;
 
@@ -57,7 +46,7 @@ impl Storage {
         player: Option<PlayerInfo>,
     ) -> Result<()> {
         let key = format!("{PROFILE_KEY}:{uuid}");
-        let mut con = self.pool.get().await?;
+        let mut con = self.client.get_multiplexed_async_connection().await?;
 
         // 5 minutes, upstream doesn't have cache anymore
         let seconds = 5 * 60;
@@ -67,13 +56,13 @@ impl Storage {
         redis::pipe()
             .set(&key, player)
             .expire(&key, seconds)
-            .query_async(&mut *con)
+            .query_async(&mut con)
             .await
             .map_err(anyhow::Error::from)
     }
 
     pub async fn get_all_players(&self) -> anyhow::Result<HashMap<Uuid, Option<PlayerInfo>>> {
-        let mut con = self.pool.get().await?;
+        let mut con = self.client.get_multiplexed_async_connection().await?;
 
         let keys: Vec<String> = con.keys(format!("{PROFILE_KEY}:*").as_str()).await?;
 

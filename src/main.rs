@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
     let http = discord::init_bot(&config).await?;
-    let cache = Storage::new(&config.redis_url).await?;
+    let cache = Storage::new(&config.redis_url)?;
 
     let state = Arc::new(AppState {
         config,
