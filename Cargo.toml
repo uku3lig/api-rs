@@ -13,7 +13,7 @@ envy = "0.4.2"
 metrics = "0.24.3"
 metrics-exporter-prometheus = { version = "0.18.1", default-features = false }
 redis = { version = "1.0.2", features = ["tokio-comp"] }
-redis-macros = "1.0.0"
+redis-macros = "1.0.1"
 regex = "1.12.2"
 reqwest = { version = "0.12.28", default-features = false, features = [
     "http2",
