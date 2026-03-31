@@ -12,17 +12,18 @@
     {
       self,
       flake-parts,
-      ...
+      nixpkgs,
     }@inputs:
+    let
+      inherit (nixpkgs) lib;
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
       ];
 
-      flake.nixosModules.default = import ./parts/module.nix self;
+      flake.nixosModules.default = lib.modules.importApply ./nix/module.nix { inherit self; };
 
       perSystem =
         {
@@ -31,7 +32,7 @@
           ...
         }:
         {
-          packages.default = pkgs.callPackage ./parts/derivation.nix { inherit self; };
+          packages.default = pkgs.callPackage ./nix/package.nix { inherit self; };
 
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [

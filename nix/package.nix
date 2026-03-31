@@ -22,6 +22,6 @@ rustPlatform.buildRustPackage {
     description = "backend for api.uku3lig.net";
     homepage = "https://github.com/uku3lig/api-rs";
     license = licenses.mit;
-    platforms = platforms.unix;
+    platforms = platforms.linux;
   };
 }
