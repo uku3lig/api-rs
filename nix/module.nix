@@ -40,12 +40,6 @@ in
   };
 
   config = mkIf cfg.enable {
-    services.redis.servers.api-rs = {
-      enable = true;
-      user = "api-rs";
-      port = 0; # disable tcp
-    };
-
     systemd.services."api-rs" = {
       enable = true;
       wantedBy = mkDefault [ "multi-user.target" ];
@@ -53,18 +47,12 @@ in
       after = mkDefault [
         "network.target"
         "network-online.target"
-        "redis-api-rs.service"
       ];
-      script = ''
-        ${getExe cfg.package}
-      '';
-
-      environment = {
-        REDIS_URL = "unix:${config.services.redis.servers.api-rs.unixSocket}";
-      };
 
       serviceConfig = {
         Type = "simple";
+        ExecStart = getExe cfg.package;
+
         Restart = "always";
         RestartSec = "5s";
 

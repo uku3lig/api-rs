@@ -7,7 +7,6 @@ pub struct EnvCfg {
     pub socket_addr: String,
     #[serde(default = "default_metrics_addr")]
     pub metrics_socket_addr: String,
-    pub redis_url: String,
     pub turnstile_secret: String,
     pub channel_id: ChannelId,
     pub bot_token: String,

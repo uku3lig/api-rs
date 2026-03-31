@@ -1,12 +1,10 @@
 #![warn(clippy::pedantic)]
 
-mod cache;
 mod config;
 mod discord;
 mod downloads;
 mod lastfm;
 mod metrics;
-mod tiers;
 mod twitter;
 mod util;
 
@@ -25,7 +23,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-use crate::{cache::Storage, config::EnvCfg, util::AppError};
+use crate::{config::EnvCfg, util::AppError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -44,7 +42,6 @@ static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 
 struct AppState {
     config: EnvCfg,
-    cache: cache::Storage,
     http: serenity::http::Http,
 }
 
@@ -79,17 +76,10 @@ async fn main() -> anyhow::Result<()> {
 
 async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
     let http = discord::init_bot(&config).await?;
-    let cache = Storage::new(&config.redis_url)?;
-
-    let state = Arc::new(AppState {
-        config,
-        cache,
-        http,
-    });
+    let state = Arc::new(AppState { config, http });
 
     let app = Router::new()
         .merge(downloads::router())
-        .merge(tiers::router())
         .route("/generate_invite", get(discord::generate_invite))
         .route("/twitter", post(twitter::webhook))
         .route("/now_playing", get(lastfm::now_playing))

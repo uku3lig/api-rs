@@ -39,8 +39,6 @@
               clippy
               (rustfmt.override { asNightly = true; })
               rust-analyzer
-
-              valkey
               xh
             ];
 
