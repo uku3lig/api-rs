@@ -1,5 +1,5 @@
 # thanks getchoo :3
-self:
+{ self }:
 {
   config,
   lib,
