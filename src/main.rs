@@ -22,6 +22,8 @@ use reqwest::{
 };
 use tokio::signal::unix::{SignalKind, signal};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tracing::Level;
+use tracing_subscriber::EnvFilter;
 
 use crate::{cache::Storage, config::EnvCfg, util::AppError};
 
@@ -54,7 +56,13 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("Failed to load .env file: {e}");
     }
 
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(Level::INFO.into())
+                .from_env_lossy(),
+        )
+        .init();
 
     let config = envy::from_env::<EnvCfg>()?;
     let metrics_addr = config.metrics_socket_addr.clone();
