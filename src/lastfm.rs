@@ -14,7 +14,7 @@ pub async fn now_playing(State(state): State<Arc<AppState>>) -> RouteResponse<im
 
     let mut response_builder = Response::builder().status(res.status());
     *response_builder.headers_mut().unwrap() = res.headers().clone();
-    let out_res = response_builder.body(Body::from_stream(res.bytes_stream()))?;
+    let out_res = response_builder.body(Body::from(res.bytes().await?))?;
 
     Ok(out_res)
 }

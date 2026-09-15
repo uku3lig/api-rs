@@ -6,31 +6,58 @@ use axum::{
     response::{IntoResponse, Redirect},
 };
 use serde::{Deserialize, Serialize};
-use serenity::all::{CreateInvite, Http};
 
 use crate::{AppState, RouteResponse, config::EnvCfg, util::IntoAppError};
 
 const VERIF_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const DISCORD_API: &str = "https://discord.com/api/v10";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct TurnstileData {
     token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct TurnstileResponse {
     success: bool,
     #[serde(rename = "error-codes")]
     error_codes: Vec<String>,
 }
 
-pub async fn init_bot(config: &EnvCfg) -> anyhow::Result<Http> {
-    let http = Http::new(&config.bot_token);
+#[derive(Deserialize)]
+struct DiscordUser {
+    username: String,
+    discriminator: String,
+}
 
-    let user = http.get_current_user().await?;
-    tracing::info!("successfully logged in to discord bot {}!", user.name);
+#[derive(Serialize)]
+struct DiscordCreateInvite {
+    max_age: usize,
+    max_uses: usize,
+}
 
-    Ok(http)
+#[derive(Deserialize)]
+struct DiscordInvite {
+    code: String,
+}
+
+pub async fn init_bot(config: &EnvCfg) -> anyhow::Result<()> {
+    let user = crate::CLIENT
+        .get(format!("{DISCORD_API}/users/@me"))
+        .header("Authorization", format!("Bot {}", config.bot_token))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<DiscordUser>()
+        .await?;
+
+    tracing::info!(
+        "successfully logged in to discord bot {}#{}!",
+        user.username,
+        user.discriminator
+    );
+
+    Ok(())
 }
 
 pub async fn generate_invite(
@@ -55,10 +82,20 @@ pub async fn generate_invite(
         return (StatusCode::BAD_REQUEST, message.as_str()).into_app_err();
     }
 
-    let invite = state
-        .config
-        .channel_id
-        .create_invite(&state.http, CreateInvite::new().max_uses(1))
+    let invite_url = format!("{DISCORD_API}/channels/{}/invites", state.config.channel_id);
+    let invite_body = DiscordCreateInvite {
+        max_uses: 1,
+        max_age: 3600,
+    };
+
+    let invite = crate::CLIENT
+        .post(invite_url)
+        .header("Authorization", format!("Bot {}", state.config.bot_token))
+        .json(&invite_body)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<DiscordInvite>()
         .await?;
 
     let link = format!("https://discord.com/invite/{}", invite.code);

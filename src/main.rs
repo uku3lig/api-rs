@@ -38,7 +38,6 @@ static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 
 struct AppState {
     config: EnvCfg,
-    http: serenity::http::Http,
 }
 
 type RouteResponse<T> = Result<T, AppError>;
@@ -71,8 +70,8 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
-    let http = discord::init_bot(&config).await?;
-    let state = Arc::new(AppState { config, http });
+    discord::init_bot(&config).await?;
+    let state = Arc::new(AppState { config });
 
     let app = Router::new()
         .merge(downloads::router())

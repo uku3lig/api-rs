@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serenity::all::ChannelId;
 
 #[derive(Debug, Deserialize)]
 pub struct EnvCfg {
@@ -8,7 +7,7 @@ pub struct EnvCfg {
     #[serde(default = "default_metrics_addr")]
     pub metrics_socket_addr: String,
     pub turnstile_secret: String,
-    pub channel_id: ChannelId,
+    pub channel_id: u64,
     pub bot_token: String,
     pub lastfm_key: String,
 }
