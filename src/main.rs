@@ -5,15 +5,11 @@ mod discord;
 mod downloads;
 mod lastfm;
 mod metrics;
-mod twitter;
 mod util;
 
 use std::sync::{Arc, LazyLock};
 
-use axum::{
-    Router, middleware,
-    routing::{get, post},
-};
+use axum::{Router, middleware, routing::get};
 use reqwest::{
     StatusCode,
     header::{HeaderMap, USER_AGENT},
@@ -81,7 +77,6 @@ async fn start_main_app(config: EnvCfg) -> anyhow::Result<()> {
     let app = Router::new()
         .merge(downloads::router())
         .route("/generate_invite", get(discord::generate_invite))
-        .route("/twitter", post(twitter::webhook))
         .route("/now_playing", get(lastfm::now_playing))
         .fallback(|| async { (StatusCode::NOT_FOUND, "Not Found") })
         .layer(TraceLayer::new_for_http().on_request(|_: &_, _: &_| {}))
