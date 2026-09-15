@@ -52,12 +52,9 @@ in
       serviceConfig = {
         Type = "simple";
         ExecStart = getExe cfg.package;
-
+        DynamicUser = true;
         Restart = "always";
         RestartSec = "5s";
-
-        User = "api-rs";
-        Group = "api-rs";
 
         EnvironmentFile = mkIf (cfg.environmentFile != null) cfg.environmentFile;
 
@@ -72,14 +69,6 @@ in
         ProtectControlGroups = true;
         PrivateDevices = true;
         RestrictSUIDSGID = true;
-      };
-    };
-
-    users = {
-      groups.api-rs = { };
-      users.api-rs = {
-        isSystemUser = true;
-        group = "api-rs";
       };
     };
   };
