@@ -1,6 +1,8 @@
 {
   lib,
   rustPlatform,
+  aws-lc,
+  pkg-config,
   self,
 }:
 let
@@ -14,6 +16,13 @@ rustPlatform.buildRustPackage {
   src = self;
 
   cargoLock.lockFile = ../Cargo.lock;
+
+  nativeBuildInputs = [ pkg-config ];
+
+  buildInputs = [ aws-lc ];
+
+  strictDeps = true;
+  __structuredAttrs = true;
 
   doCheck = false;
 
